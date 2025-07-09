@@ -63,7 +63,17 @@ setup(
         "Natural Language :: English",
     ],
     python_requires=">=3.8",
-    install_requires=read_requirements(),
+    install_requires=[
+        "numpy>=1.20.0",
+        "scipy>=1.7.0",
+        "pandas>=1.3.0",
+        "matplotlib>=3.4.0",
+        "plotly>=5.0.0",
+        "numba>=0.56.0",
+        "yfinance>=0.1.70",
+        "scikit-learn>=1.0.0",
+        "jupyter>=1.0.0"
+    ],
     extras_require={
         "dev": [
             "pytest>=6.0",

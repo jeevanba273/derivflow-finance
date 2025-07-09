@@ -1044,8 +1044,6 @@ DerivFlow Finance is protected under the [MIT License](https://choosealicense.co
 - **Academic Standards**: Implementation meeting peer-review quality for advanced derivatives research
 
 
-<div align="left"><a href="#top">⬆ Return</a></div>
-
 ---
 
 ## 📞 Contact & Support
@@ -1074,3 +1072,6 @@ DerivFlow Finance is protected under the [MIT License](https://choosealicense.co
 *© 2025 DerivFlow Finance. Advanced derivatives analytics platform for quantitative finance professionals.*
 
 </div>
+
+<div align="left"><a href="#top">⬆ Return</a></div>
+

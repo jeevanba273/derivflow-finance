@@ -13,7 +13,7 @@
 <img src="https://img.shields.io/github/languages/top/jeevanba273/derivflow-finance?style=flat&color=0080ff" alt="repo-top-language">
 <img src="https://img.shields.io/github/languages/count/jeevanba273/derivflow-finance?style=flat&color=0080ff" alt="repo-language-count">
 <img src="https://img.shields.io/pypi/v/derivflow-finance?style=flat&logo=pypi&logoColor=white&color=0080ff&cache=bust" alt="pypi-version">
-<img src="https://static.pepy.tech/badge/derivflow-finance?style=flat&color=0080ff" alt="total-downloads">
+<img src="https://static.pepy.tech/badge/derivflow-finance" alt="total-downloads">
 
 <em>Built with the tools and technologies:</em>
 

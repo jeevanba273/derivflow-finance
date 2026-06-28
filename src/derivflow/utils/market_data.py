@@ -10,7 +10,6 @@ Professional-grade market data interface with:
 - Robust handling of market closed scenarios
 """
 
-import yfinance as yf
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -18,6 +17,22 @@ from typing import Dict, List, Optional, Tuple, Union
 import warnings
 from dataclasses import dataclass
 import time
+
+
+def _yf():
+    """
+    Lazily import yfinance so the rest of the package imports cleanly even when
+    yfinance is not installed. Live-data methods call this; everything else works
+    without the optional dependency.
+    """
+    try:
+        import yfinance as yf
+        return yf
+    except ImportError as exc:  # pragma: no cover - exercised only without yfinance
+        raise ImportError(
+            "yfinance is required for live market data. Install it with "
+            "'pip install yfinance'."
+        ) from exc
 
 @dataclass
 class OptionData:
@@ -127,7 +142,7 @@ class AdvancedMarketData:
         """Get current risk-free rate from Treasury data"""
         try:
             # Use 10-year Treasury as proxy for risk-free rate
-            treasury = yf.Ticker("^TNX")
+            treasury = _yf().Ticker("^TNX")
             hist = treasury.history(period="5d")
             if not hist.empty:
                 return self._safe_float(hist['Close'].iloc[-1]) / 100
@@ -151,7 +166,7 @@ class AdvancedMarketData:
             Current/last price and timestamp
         """
         try:
-            ticker = yf.Ticker(symbol)
+            ticker = _yf().Ticker(symbol)
 
             # Try to get intraday data first
             hist = ticker.history(period="2d", interval="5m")
@@ -191,7 +206,7 @@ class AdvancedMarketData:
         market_open, market_status = self.is_market_open()
 
         try:
-            ticker = yf.Ticker(symbol)
+            ticker = _yf().Ticker(symbol)
 
             # Get current stock price
             spot_price, timestamp = self.get_current_price(symbol)
@@ -327,7 +342,7 @@ class AdvancedMarketData:
             Volatility surface data ready for VolatilitySurface class
         """
         try:
-            ticker = yf.Ticker(symbol)
+            ticker = _yf().Ticker(symbol)
             expiry_dates = ticker.options[:max_expiries]
 
             surface_data = []
@@ -407,7 +422,7 @@ class AdvancedMarketData:
             Annualized historical volatility
         """
         try:
-            ticker = yf.Ticker(symbol)
+            ticker = _yf().Ticker(symbol)
             hist = ticker.history(period=f"{max(days*2, 60)}d")  # Get extra data for safety
 
             if len(hist) < days:

@@ -62,7 +62,7 @@ class AsianOptions:
             Random seed for reproducible results
         """
         self.num_sims = num_sims
-        if random_seed:
+        if random_seed is not None:
             np.random.seed(random_seed)
 
     def price_geometric_asian_analytical(self, S: float, K: float, T: float,

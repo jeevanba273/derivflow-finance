@@ -52,7 +52,7 @@ class BarrierOptions:
         random_seed : int, optional
             Random seed for reproducible Monte Carlo results
         """
-        if random_seed:
+        if random_seed is not None:
             np.random.seed(random_seed)
 
     def _validate_barrier_parameters(self, S: float, K: float, H: float,
@@ -102,6 +102,27 @@ class BarrierOptions:
 
         if T <= 0:
             return self._handle_expiry(S, K, H, barrier_type, option_type)
+
+        # Already-breached barrier at t=0: a knock-in is immediately activated and
+        # equals the vanilla option; a knock-out is already dead and worth 0. The
+        # Haug image formulas below are only valid for an un-breached barrier
+        # (down: S > H, up: S < H), so short-circuit these degenerate cases to
+        # preserve the no-arbitrage bound knock_in <= vanilla.
+        bt_lower = barrier_type.lower()
+        is_down = bt_lower.startswith('down')
+        already_breached = (is_down and S <= H) or ((not is_down) and S >= H)
+        if already_breached:
+            if bt_lower.endswith('out'):
+                price = 0.0
+            else:
+                d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+                d2 = d1 - sigma * np.sqrt(T)
+                if option_type.lower() == 'call':
+                    price = S * stats.norm.cdf(d1) - K * np.exp(-r * T) * stats.norm.cdf(d2)
+                else:
+                    price = K * np.exp(-r * T) * stats.norm.cdf(-d2) - S * stats.norm.cdf(-d1)
+            survival_prob = self._calculate_survival_probability(S, H, T, r, sigma, barrier_type)
+            return BarrierOptionResult(price=max(price, 0), probability_survival=survival_prob)
 
         # Reiner-Rubinstein / Haug standard barrier formulas (zero rebate).
         # Building blocks A, B, C, D parameterized by phi (call=+1, put=-1) and

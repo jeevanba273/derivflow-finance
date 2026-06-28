@@ -325,7 +325,7 @@ class GreeksCalculator:
 
     def calculate_greeks(self, S: float, K: float, T: float, r: float,
                         sigma: float, option_type: str = 'call',
-                        q: float = 0.0, pricing_func=None, **kwargs) -> GreeksResult:
+                        pricing_func=None, *, q: float = 0.0, **kwargs) -> GreeksResult:
         """
         Main interface for Greeks calculation
 
@@ -343,10 +343,10 @@ class GreeksCalculator:
             Volatility
         option_type : str
             'call' or 'put'
-        q : float
-            Continuous dividend yield (default 0.0 reproduces classic Black-Scholes)
         pricing_func : callable, optional
             Custom pricing function for numerical Greeks
+        q : float, keyword-only
+            Continuous dividend yield (default 0.0 reproduces classic Black-Scholes)
         **kwargs
             Additional parameters
 

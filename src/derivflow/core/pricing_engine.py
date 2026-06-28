@@ -195,7 +195,7 @@ class MonteCarloEngine(PricingMethod):
             Random seed for reproducible results
         """
         self.num_sims = num_sims
-        if random_seed:
+        if random_seed is not None:
             np.random.seed(random_seed)
 
     def generate_gbm_paths(self, S0: float, T: float, r: float, sigma: float,

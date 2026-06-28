@@ -29,3 +29,16 @@ def test_parametric_var_ordering():
     assert var95 > 0 and var99 > 0
     assert var95 < var99      # higher confidence -> larger VaR
     assert es95 >= var95      # expected shortfall is at least VaR
+
+
+def test_dividend_yield_consistent_in_valuation():
+    """Regression: portfolio value must reprice dividend options at their q,
+    consistent with the q-aware Greaks stored on the position (not q=0)."""
+    from derivflow.core.pricing_engine import price_european_option
+    analyzer = PortfolioRiskAnalyzer(risk_free_rate=0.05)
+    analyzer.add_option_position('X', 1, 100, 100, 1.0, 'call',
+                                 volatility=0.2, dividend_yield=0.05)
+    expected = price_european_option(100, 100, 1.0, 0.05, 0.2, 'call', q=0.05) * 100
+    assert analyzer.calculate_portfolio_value() == pytest.approx(expected, rel=1e-9)
+    # And the report's portfolio_value uses the same q-aware basis.
+    assert analyzer.generate_risk_report().portfolio_value == pytest.approx(expected, rel=1e-9)

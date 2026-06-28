@@ -225,7 +225,8 @@ class PortfolioRiskAnalyzer:
                 # Recalculate option price
                 option_price = price_european_option(
                     position.current_price, position.strike, position.expiry,
-                    position.risk_free_rate, position.volatility, position.option_type
+                    position.risk_free_rate, position.volatility, position.option_type,
+                    q=position.dividend_yield or 0.0
                 )
                 position_value = position.quantity * option_price * 100  # Contract multiplier
             else:
@@ -364,7 +365,8 @@ class PortfolioRiskAnalyzer:
                         # Recalculate option price
                         new_option_price = price_european_option(
                             new_underlying_price, position.strike, new_expiry,
-                            position.risk_free_rate, position.volatility, position.option_type
+                            position.risk_free_rate, position.volatility, position.option_type,
+                            q=position.dividend_yield or 0.0
                         )
                         position_value = position.quantity * new_option_price * 100
                     else:
@@ -518,7 +520,8 @@ class PortfolioRiskAnalyzer:
             elif position.position_type == 'option':
                 option_price = price_european_option(
                     position.current_price, position.strike, position.expiry,
-                    position.risk_free_rate, position.volatility, position.option_type
+                    position.risk_free_rate, position.volatility, position.option_type,
+                    q=position.dividend_yield or 0.0
                 )
                 position_value = abs(position.quantity * option_price * 100)
 

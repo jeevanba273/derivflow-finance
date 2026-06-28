@@ -12,6 +12,12 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Use bash on every OS (including Windows) so multi-line run steps with
+# backslash continuations parse consistently (Windows defaults to PowerShell).
+defaults:
+  run:
+    shell: bash
+
 jobs:
   test:
     name: Test (Python ${{ matrix.python-version }} on ${{ matrix.os }})

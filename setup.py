@@ -39,7 +39,7 @@ setup(
     url="https://github.com/jeevanba273/derivflow-finance",
     project_urls={
         "Bug Tracker": "https://github.com/jeevanba273/derivflow-finance/issues",
-        "Documentation": "https://github.com/jeevanba273/derivflow-finance/wiki",
+        "Documentation": "https://derivflow-finance.readthedocs.io",
         "Source Code": "https://github.com/jeevanba273/derivflow-finance",
     },
     package_dir={"": "src"},
@@ -71,8 +71,7 @@ setup(
         "plotly>=5.0.0",
         "numba>=0.56.0",
         "yfinance>=0.1.70",
-        "scikit-learn>=1.0.0",
-        "jupyter>=1.0.0"
+        "scikit-learn>=1.0.0"
     ],
     extras_require={
         "dev": [
@@ -81,8 +80,11 @@ setup(
             "black>=21.0",
             "flake8>=3.9",
             "mypy>=0.910",
-            "sphinx>=4.0",
-            "jupyter>=1.0.0",
+        ],
+        "testing": [
+            "pytest>=6.0",
+            "pytest-cov>=2.0",
+            "pytest-xdist>=2.0",
         ],
         "docs": [
             "sphinx>=4.0",
@@ -94,10 +96,9 @@ setup(
             "matplotlib>=3.4.0",
             "seaborn>=0.11.0",
         ],
-        "testing": [
-            "pytest>=6.0",
-            "pytest-cov>=2.0",
-            "pytest-xdist>=2.0",
+        "notebooks": [
+            "jupyter>=1.0.0",
+            "notebook>=6.0",
         ],
     },
     entry_points={

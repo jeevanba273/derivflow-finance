@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: GitHub Discussions
+    url: https://github.com/jeevanba273/derivflow-finance/discussions
+    about: Ask questions, share ideas, and discuss usage with the community.
+  - name: Email the maintainer
+    url: mailto:jeevanba273@gmail.com
+    about: For private matters or security reports, contact the maintainer directly.

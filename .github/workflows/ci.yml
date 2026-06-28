@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * *"  # nightly slow-test run
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        include:
+          # One Windows and one macOS leg to catch numba / RNG portability issues.
+          - os: windows-latest
+            python-version: "3.11"
+          - os: macos-latest
+            python-version: "3.11"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # setuptools_scm needs full history and tags to derive the version.
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install package with dev/test extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,testing]"
+
+      - name: Run test suite (fast lane) with coverage
+        run: |
+          pytest -m "not slow and not integration" \
+            --cov=derivflow --cov-report=xml --cov-report=term-missing \
+            --cov-fail-under=45 -p no:cacheprovider
+
+      - name: Check formatting (black)
+        continue-on-error: true  # advisory until the codebase is fully formatted
+        run: black --check .
+
+      - name: Type check (mypy)
+        continue-on-error: true  # advisory until full type coverage is in place
+        run: mypy src/derivflow/core src/derivflow/greeks src/derivflow/volatility
+
+      - name: No decorative emojis in shipped sources
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          # Fail on emoji/pictograph/dingbat code points, while allowing Greek
+          # (U+0370-03FF), math operators (U+2200-22FF) and box drawing.
+          if grep -rlP '[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{2B00}-\x{2BFF}\x{2190}-\x{21FF}\x{FE00}-\x{FE0F}\x{1F1E6}-\x{1F1FF}]' \
+              src README.md docs 2>/dev/null; then
+            echo "Decorative emoji found in shipped sources (see files above)."
+            exit 1
+          fi
+          echo "No decorative emojis found."
+
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+
+  slow:
+    name: Slow tests (nightly)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,testing]"
+      - run: pytest -m "slow" -p no:cacheprovider

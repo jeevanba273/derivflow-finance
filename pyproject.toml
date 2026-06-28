@@ -51,8 +51,12 @@ dev = [
     "pytest-cov>=2.0",
     "black>=21.0",
     "flake8>=3.9",
-    "mypy>=0.910",
-    "jupyter>=1.0.0"
+    "mypy>=0.910"
+]
+testing = [
+    "pytest>=6.0",
+    "pytest-cov>=2.0",
+    "pytest-xdist>=2.0"
 ]
 docs = [
     "sphinx>=4.0",
@@ -64,10 +68,14 @@ visualization = [
     "matplotlib>=3.4.0",
     "seaborn>=0.11.0"
 ]
+notebooks = [
+    "jupyter>=1.0.0",
+    "notebook>=6.0"
+]
 
 [project.urls]
 Homepage = "https://github.com/jeevanba273/derivflow-finance"
-Documentation = "https://github.com/jeevanba273/derivflow-finance/wiki"
+Documentation = "https://derivflow-finance.readthedocs.io"
 Repository = "https://github.com/jeevanba273/derivflow-finance.git"
 "Bug Tracker" = "https://github.com/jeevanba273/derivflow-finance/issues"
 
@@ -98,6 +106,23 @@ addopts = "-v --tb=short --strict-markers"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests"
+]
+
+[tool.coverage.run]
+source = ["derivflow"]
+branch = true
+omit = [
+    "*/_version.py",
+    "*/visualization/*",
+    "*/__main__*",
+]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
 ]
 
 [tool.mypy]

@@ -6,4 +6,3 @@ plotly>=5.0.0
 numba>=0.56.0
 yfinance>=0.1.70
 scikit-learn>=1.0.0
-jupyter>=1.0.0

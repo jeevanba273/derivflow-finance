@@ -15,7 +15,7 @@ from .portfolio_risk import (
 
 __all__ = [
     'PortfolioRiskAnalyzer',
-    'Position', 
+    'Position',
     'RiskMetrics',
     'ScenarioResult',
     'create_sample_portfolio'

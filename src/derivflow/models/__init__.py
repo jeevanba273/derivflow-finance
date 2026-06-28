@@ -12,7 +12,7 @@ from .heston import (
 )
 
 __all__ = [
-    'HestonModel', 
+    'HestonModel',
     'HestonParameters',
     'HestonResult'
 ]

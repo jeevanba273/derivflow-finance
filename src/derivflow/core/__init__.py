@@ -19,7 +19,7 @@ __all__ = [
     'PricingEngine',
     'PricingMethod',
     'BlackScholesAnalytical',
-    'BinomialTree', 
+    'BinomialTree',
     'MonteCarloEngine',
     'price_european_option'
 ]

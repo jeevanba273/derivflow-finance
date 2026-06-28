@@ -3,7 +3,7 @@
 <!-- HEADER STYLE: CLASSIC -->
 <div align="center">
 
-# 🚀 DERIVFLOW FINANCE 
+# DERIVFLOW FINANCE
 
 <em>Advanced derivatives analytics platform for institutional quantitative finance.</em>
 
@@ -14,6 +14,8 @@
 <img src="https://img.shields.io/github/languages/count/jeevanba273/derivflow-finance?style=flat&color=0080ff" alt="repo-language-count">
 <img src="https://img.shields.io/pypi/v/derivflow-finance?style=flat&logo=pypi&logoColor=white&color=0080ff&cache=bust" alt="pypi-version">
 <img src="https://static.pepy.tech/badge/derivflow-finance" alt="total-downloads">
+<img src="https://github.com/jeevanba273/derivflow-finance/actions/workflows/ci.yml/badge.svg" alt="ci-status">
+<img src="https://readthedocs.org/projects/derivflow-finance/badge/?version=latest" alt="docs-status">
 
 <em>Built with the tools and technologies:</em>
 
@@ -32,31 +34,31 @@ pip install derivflow-finance
 ```
 ---
 
-## 📄 Table of Contents
+## Table of Contents
 
-- [Overview](#-overview)
-- [Quick Start](#-quick-start)
-- [Live Demo Results](#-live-demo-results)
-- [Getting Started](#-getting-started)
-    - [Prerequisites](#-prerequisites)
-    - [Installation](#%EF%B8%8F-installation)
-    - [Usage](#-usage)
-    - [Testing](#-testing)
-- [Features](#-features)
-- [Mathematical Validation](#-mathematical-validation)
-- [Technical Specifications](#-technical-specifications)
-- [Project Structure](#-project-structure)
-    - [Project Index](#-project-index)
-- [Examples](#-examples)
-- [Educational Applications](#-educational-applications)
-- [Roadmap](#-roadmap)
-- [Contributing](#-contributing)
-- [License](#-license)
-- [Acknowledgments](#-acknowledgments)
+- [Overview](#overview)
+- [Quick Start](#quick-start)
+- [Live Demo Results](#live-demo-results)
+- [Getting Started](#getting-started)
+    - [Prerequisites](#prerequisites)
+    - [Installation](#installation)
+    - [Usage](#usage)
+    - [Testing](#testing)
+- [Features](#features)
+- [Mathematical Validation](#mathematical-validation)
+- [Technical Specifications](#technical-specifications)
+- [Project Structure](#project-structure)
+    - [Project Index](#project-index)
+- [Examples](#examples)
+- [Educational Applications](#educational-applications)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
 
 ---
 
-## ✨ Overview
+## Overview
 
 DerivFlow Finance is a production-ready Python package designed to empower derivatives traders, quantitative researchers, and financial engineers with institutional-grade tools for advanced derivatives pricing and risk management.
 
@@ -64,16 +66,16 @@ DerivFlow Finance is a production-ready Python package designed to empower deriv
 
 This project represents the pinnacle of derivatives analytics, providing a comprehensive, enterprise-level framework for sophisticated quantitative finance applications. The core capabilities include:
 
-- 🎯 **Multiple Pricing Methodologies:** Black-Scholes analytical, Binomial trees, Monte Carlo with variance reduction
-- 🎲 **Complete Exotic Options Suite:** Barrier options (all variants), Asian options with advanced algorithms
-- 🧠 **Stochastic Volatility Models:** Heston model with full calibration and Monte Carlo implementation
-- 📊 **Advanced Greeks Calculator:** All 1st, 2nd, and 3rd order Greeks including Volga, Vanna, Speed
-- 📈 **Real-Time Market Integration:** Live Yahoo Finance data with intelligent caching and preprocessing
-- 🌊 **Volatility Surface Engine:** 3D interpolation with cubic splines and professional modeling
-- 💼 **Portfolio Risk Analytics:** Complete VaR, Expected Shortfall, scenario analysis, and hedging optimization
-- 🎨 **Interactive Visualizations:** Professional plotly-based dashboards and 3D surfaces
-- ⚡ **Institutional Performance:** 8,977 Black-Scholes calculations per second, optimized algorithms
-- 🔬 **Mathematical Precision:** Validated against academic literature with comprehensive testing
+- **Multiple Pricing Methodologies:** Black-Scholes analytical, Binomial trees, Monte Carlo with variance reduction
+- **Complete Exotic Options Suite:** Barrier options (all variants), Asian options with advanced algorithms
+- **Stochastic Volatility Models:** Heston model with full calibration and Monte Carlo implementation
+- **Advanced Greeks Calculator:** All 1st, 2nd, and 3rd order Greeks including Volga, Vanna, Speed
+- **Real-Time Market Integration:** Live Yahoo Finance data with intelligent caching and preprocessing
+- **Volatility Surface Engine:** 3D interpolation with cubic splines and professional modeling
+- **Portfolio Risk Analytics:** Complete VaR, Expected Shortfall, scenario analysis, and hedging optimization
+- **Interactive Visualizations:** Professional plotly-based dashboards and 3D surfaces
+- **Institutional Performance:** 8,977 Black-Scholes calculations per second, optimized algorithms
+- **Mathematical Precision:** Validated against academic literature with comprehensive testing
 
 **Perfect for:**
 - **Derivatives Traders**: Real-time pricing, Greeks analysis, volatility trading strategies
@@ -84,7 +86,7 @@ This project represents the pinnacle of derivatives analytics, providing a compr
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 ```python
 from derivflow.core import price_european_option
@@ -93,26 +95,26 @@ from derivflow.exotic import BarrierOptions, AsianOptions
 from derivflow.portfolio import PortfolioRiskAnalyzer
 
 # 1. Price European options with multiple methods
-call_bs = price_european_option(S=100, K=105, T=0.25, r=0.05, sigma=0.25, 
+call_bs = price_european_option(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
                                method='black_scholes', option_type='call')
-call_mc = price_european_option(S=100, K=105, T=0.25, r=0.05, sigma=0.25, 
+call_mc = price_european_option(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
                                method='monte_carlo', option_type='call')
 print(f"Black-Scholes: ${call_bs:.4f} | Monte Carlo: ${call_mc:.4f}")
 
 # 2. Complete Greeks analysis with advanced sensitivities
 calc = GreeksCalculator()
-greeks = calc.calculate_all_greeks(S=100, K=105, T=0.25, r=0.05, sigma=0.25)
+greeks = calc.calculate_greeks(S=100, K=105, T=0.25, r=0.05, sigma=0.25)
 print(f"Delta: {greeks.delta:.4f} | Gamma: {greeks.gamma:.4f}")
 print(f"Volga: {greeks.volga:.4f} | Vanna: {greeks.vanna:.4f}")
 
 # 3. Exotic options with variance reduction
 barrier = BarrierOptions()
-result = barrier.price(S=100, K=105, H=95, T=0.25, r=0.05, sigma=0.25, 
+result = barrier.price(S=100, K=105, H=95, T=0.25, r=0.05, sigma=0.25,
                       barrier_type='down_and_out', option_type='call')
-print(f"Barrier Option: ${result.price:.4f} (Survival: {result.survival_prob:.1%})")
+print(f"Barrier Option: ${result.price:.4f} (Survival: {result.probability_survival:.1%})")
 
 asian = AsianOptions()
-result = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25, 
+result = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
                     option_type='call', asian_type='arithmetic')
 print(f"Asian Option: ${result.price:.4f} ± {result.std_error:.4f}")
 
@@ -129,7 +131,7 @@ print(f"95% VaR: ${var_95:,.2f} | Expected Shortfall: ${es_95:,.2f}")
 
 ---
 
-## 🚀 Live Demo Results
+## Live Demo Results
 
 **Real results from comprehensive testing with institutional-grade validation:**
 
@@ -140,20 +142,20 @@ print(f"95% VaR: ${var_95:,.2f} | Expected Shortfall: ${es_95:,.2f}")
 | **Binomial Tree** | $3.4312 | 0.009s | 99.75% |
 | **Monte Carlo** | $3.4174 ± 0.0292 | 0.002s | 99.35% |
 
-**✅ Put-Call Parity:** Perfect mathematical precision (error < 0.00000001)
+**Put-Call Parity:** Perfect mathematical precision (error < 0.00000001)
 
 ### Complete Greeks Analysis (Live Market Data)
 | Greek | Call Option | Put Option | Mathematical Validation |
 |-------|-------------|------------|------------------------|
-| **Delta (Δ)** | 0.4099 | -0.5901 | ✅ Price sensitivity |
-| **Gamma (Γ)** | 0.0311 | 0.0311 | ✅ Delta sensitivity |
-| **Theta (Θ)** | -0.03 | -0.02 | ✅ Time decay (daily) |
-| **Vega (ν)** | 0.19 | 0.19 | ✅ Volatility sensitivity |
-| **Rho (ρ)** | 0.094 | -0.165 | ✅ Interest rate sensitivity |
+| **Delta (Δ)** | 0.4099 | -0.5901 | Price sensitivity |
+| **Gamma (Γ)** | 0.0311 | 0.0311 | Delta sensitivity |
+| **Theta (Θ)** | -0.03 | -0.02 | Time decay (daily) |
+| **Vega (ν)** | 0.19 | 0.19 | Volatility sensitivity |
+| **Rho (ρ)** | 0.094 | -0.165 | Interest rate sensitivity |
 
-**🔬 Advanced Greeks:**
+**Advanced Greeks:**
 - **Volga:** 0.0625 (Vega-volatility sensitivity)
-- **Vanna:** 0.0055 (Delta-volatility sensitivity)  
+- **Vanna:** 0.0055 (Delta-volatility sensitivity)
 - **Speed:** 0.000256 (Gamma-spot sensitivity)
 
 ### Exotic Options Suite (Institutional Accuracy)
@@ -166,7 +168,7 @@ print(f"95% VaR: ${var_95:,.2f} | Expected Shortfall: ${es_95:,.2f}")
 
 ### Real-Time Market Integration (Live AAPL Data)
 - **Current Price:** $210.04
-- **Market Status:** 🔴 Pre-market
+- **Market Status:** Pre-market
 - **Historical Volatility (30d):** 20.9%
 - **Risk-free Rate:** 4.41%
 - **Last Updated:** 2025-07-08 15:55:00
@@ -187,35 +189,35 @@ print(f"95% VaR: ${var_95:,.2f} | Expected Shortfall: ${es_95:,.2f}")
 
 ---
 
-## 📌 Features
+## Features
 
 |      | Component       | Details                              |
 | :--- | :-------------- | :----------------------------------- |
-| 🎯  | **Advanced Pricing Models**  | <ul><li>Black-Scholes analytical implementation</li><li>Binomial tree models with American exercise</li><li>Monte Carlo simulation with variance reduction</li><li>Heston stochastic volatility model</li></ul> |
-| 🎲 | **Exotic Options Suite**  | <ul><li>Barrier options: all variants (up/down, in/out)</li><li>Asian options: arithmetic and geometric averaging</li><li>Advanced algorithms with control variates</li><li>Variance reduction techniques (1496x improvement)</li></ul> |
-| 📊 | **Complete Greeks Calculator** | <ul><li>1st order: Delta, Theta, Rho, Vega</li><li>2nd order: Gamma (convexity analysis)</li><li>3rd order: Volga, Vanna, Speed</li><li>Cross-sensitivities and advanced risk metrics</li></ul> |
-| 💹 | **Real-Time Market Data** | <ul><li>Live Yahoo Finance integration</li><li>Options chains with implied volatilities</li><li>Historical volatility calculation</li><li>Market status and trading hours</li></ul> |
-| 🌊 | **Volatility Surface Engine** | <ul><li>3D volatility surface modeling</li><li>Cubic spline interpolation</li><li>Professional smile fitting</li><li>Arbitrage-free constraints</li></ul> |
-| 💼 | **Portfolio Risk Analytics** | <ul><li>Multi-asset portfolio construction</li><li>VaR and Expected Shortfall calculation</li><li>Scenario analysis and stress testing</li><li>Delta hedging optimization</li></ul> |
-| 🎨 | **Interactive Visualizations** | <ul><li>Professional plotly dashboards</li><li>3D volatility surfaces</li><li>Greeks sensitivity plots</li><li>Payoff diagrams and P&L analysis</li></ul> |
-| ⚡️  | **Institutional Performance**   | <ul><li>8,977 Black-Scholes calculations per second</li><li>Optimized NumPy/SciPy implementations</li><li>Advanced Monte Carlo algorithms</li><li>Memory-efficient operations</li></ul> |
+|  | **Advanced Pricing Models**  | <ul><li>Black-Scholes analytical implementation</li><li>Binomial tree models with American exercise</li><li>Monte Carlo simulation with variance reduction</li><li>Heston stochastic volatility model</li></ul> |
+| | **Exotic Options Suite**  | <ul><li>Barrier options: all variants (up/down, in/out)</li><li>Asian options: arithmetic and geometric averaging</li><li>Advanced algorithms with control variates</li><li>Variance reduction techniques (1496x improvement)</li></ul> |
+| | **Complete Greeks Calculator** | <ul><li>1st order: Delta, Theta, Rho, Vega</li><li>2nd order: Gamma (convexity analysis)</li><li>3rd order: Volga, Vanna, Speed</li><li>Cross-sensitivities and advanced risk metrics</li></ul> |
+| | **Real-Time Market Data** | <ul><li>Live Yahoo Finance integration</li><li>Options chains with implied volatilities</li><li>Historical volatility calculation</li><li>Market status and trading hours</li></ul> |
+| | **Volatility Surface Engine** | <ul><li>3D volatility surface modeling</li><li>Cubic spline interpolation</li><li>Professional smile fitting</li><li>Arbitrage-free constraints</li></ul> |
+| | **Portfolio Risk Analytics** | <ul><li>Multi-asset portfolio construction</li><li>VaR and Expected Shortfall calculation</li><li>Scenario analysis and stress testing</li><li>Delta hedging optimization</li></ul> |
+| | **Interactive Visualizations** | <ul><li>Professional plotly dashboards</li><li>3D volatility surfaces</li><li>Greeks sensitivity plots</li><li>Payoff diagrams and P&L analysis</li></ul> |
+|  | **Institutional Performance**   | <ul><li>8,977 Black-Scholes calculations per second</li><li>Optimized NumPy/SciPy implementations</li><li>Advanced Monte Carlo algorithms</li><li>Memory-efficient operations</li></ul> |
 
 ---
 
-## 🏆 Mathematical Validation
+## Mathematical Validation
 
 DerivFlow Finance implements cutting-edge derivatives models with rigorous institutional validation:
 
 | Test | Real Result | Status |
 |------|-------------|--------|
-| **Multiple Pricing Methods** | BS: $3.4399, MC: $3.4174 ± 0.0292 | ✅ Perfect cross-validation |
-| **Put-Call Parity** | Error < 0.00000001 across all tests | ✅ Mathematical precision |
-| **Advanced Greeks** | All 8 Greeks: Δ, Γ, Θ, ν, ρ, Volga, Vanna, Speed | ✅ Complete sensitivity analysis |
-| **Exotic Options Accuracy** | Asian options: 1496x variance reduction | ✅ Advanced algorithms validated |
-| **Live Market Integration** | AAPL: $210.04, Vol: 20.9% | ✅ Real-time data processing |
-| **Volatility Surface** | 36-point interpolation, 18.7%-32.9% range | ✅ Professional surface modeling |
-| **Portfolio Risk** | 5-position portfolio: $10,001 value | ✅ Complete risk analytics |
-| **Performance Benchmarks** | 8,977 calculations/second | ✅ Institutional-grade speed |
+| **Multiple Pricing Methods** | BS: $3.4399, MC: $3.4174 ± 0.0292 | Perfect cross-validation |
+| **Put-Call Parity** | Error < 0.00000001 across all tests | Mathematical precision |
+| **Advanced Greeks** | All 8 Greeks: Δ, Γ, Θ, ν, ρ, Volga, Vanna, Speed | Complete sensitivity analysis |
+| **Exotic Options Accuracy** | Asian options: 1496x variance reduction | Advanced algorithms validated |
+| **Live Market Integration** | AAPL: $210.04, Vol: 20.9% | Real-time data processing |
+| **Volatility Surface** | 36-point interpolation, 18.7%-32.9% range | Professional surface modeling |
+| **Portfolio Risk** | 5-position portfolio: $10,001 value | Complete risk analytics |
+| **Performance Benchmarks** | 8,977 calculations/second | Institutional-grade speed |
 
 **Mathematical Accuracy:**
 - **Black-Scholes Model**: Exact analytical implementation with institutional precision
@@ -232,7 +234,7 @@ DerivFlow Finance implements cutting-edge derivatives models with rigorous insti
 
 ---
 
-## 🔧 Technical Specifications
+## Technical Specifications
 
 - **Computational Complexity**: O(1) for Black-Scholes, O(log n) for binomial, O(√n) for Monte Carlo
 - **Numerical Precision**: 64-bit floating-point arithmetic with error < 0.0001%
@@ -247,14 +249,14 @@ DerivFlow Finance implements cutting-edge derivatives models with rigorous insti
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
-### 📋 Prerequisites
+### Prerequisites
 
 - **Python:** 3.8 or higher
 - **Package Manager:** pip (included with Python)
 
-### ⚙️ Installation
+### Installation
 
 **Option 1: Install from PyPI (recommended):**
 
@@ -270,7 +272,7 @@ cd derivflow-finance
 pip install -e .
 ```
 
-### 💻 Usage
+### Usage
 
 **Complete Derivatives Pricing Analysis:**
 
@@ -281,15 +283,15 @@ from derivflow.greeks import GreeksCalculator
 # Multi-method pricing comparison
 methods = ['black_scholes', 'binomial', 'monte_carlo']
 for method in methods:
-    price = price_european_option(S=100, K=105, T=0.25, r=0.05, sigma=0.25, 
+    price = price_european_option(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
                                  method=method, option_type='call')
     print(f"{method.title()}: ${price:.4f}")
 
 # Complete Greeks analysis
 calc = GreeksCalculator()
-greeks = calc.calculate_all_greeks(S=100, K=105, T=0.25, r=0.05, sigma=0.25)
+greeks = calc.calculate_greeks(S=100, K=105, T=0.25, r=0.05, sigma=0.25)
 
-print(f"\n📊 Complete Greeks Analysis:")
+print(f"\nComplete Greeks Analysis:")
 print(f"Delta (Δ): {greeks.delta:.4f} | Gamma (Γ): {greeks.gamma:.4f}")
 print(f"Theta (Θ): {greeks.theta:.4f} | Vega (ν): {greeks.vega:.4f}")
 print(f"Rho (ρ): {greeks.rho:.4f}")
@@ -305,27 +307,27 @@ from derivflow.exotic import BarrierOptions, AsianOptions
 barrier = BarrierOptions()
 barrier_types = ['down_and_out', 'up_and_out', 'down_and_in', 'up_and_in']
 
-print("🎲 Barrier Options Suite:")
+print("Barrier Options Suite:")
 for barrier_type in barrier_types:
-    result = barrier.price(S=100, K=105, H=95 if 'down' in barrier_type else 115, 
-                          T=0.25, r=0.05, sigma=0.25, 
+    result = barrier.price(S=100, K=105, H=95 if 'down' in barrier_type else 115,
+                          T=0.25, r=0.05, sigma=0.25,
                           barrier_type=barrier_type, option_type='call')
-    print(f"{barrier_type}: ${result.price:.4f} (Survival: {result.survival_prob:.1%})")
+    print(f"{barrier_type}: ${result.price:.4f} (Survival: {result.probability_survival:.1%})")
 
 # Asian options with variance reduction
 asian = AsianOptions()
-print(f"\n📈 Asian Options with Variance Reduction:")
+print(f"\nAsian Options with Variance Reduction:")
 
 # Geometric (analytical)
-geo_result = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25, 
+geo_result = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
                         option_type='call', asian_type='geometric')
 print(f"Geometric: ${geo_result.price:.4f} (Analytical)")
 
 # Arithmetic with control variates
-arith_result = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25, 
+arith_result = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
                           option_type='call', asian_type='arithmetic')
 print(f"Arithmetic: ${arith_result.price:.4f} ± {arith_result.std_error:.4f}")
-print(f"Variance Reduction: {arith_result.variance_reduction:.0f}x improvement!")
+print(f"Variance Reduction: {arith_result.convergence_info['variance_reduction_ratio']:.0f}x improvement!")
 ```
 
 **Professional Portfolio Risk Management:**
@@ -338,16 +340,16 @@ portfolio = PortfolioRiskAnalyzer()
 
 # Add multiple positions
 portfolio.add_stock_position('AAPL', quantity=100, current_price=150.0, volatility=0.25)
-portfolio.add_option_position('AAPL', quantity=10, current_price=150.0, 
+portfolio.add_option_position('AAPL', quantity=10, current_price=150.0,
                              strike=155.0, expiry=0.25, option_type='call', volatility=0.25)
-portfolio.add_option_position('AAPL', quantity=-5, current_price=150.0, 
+portfolio.add_option_position('AAPL', quantity=-5, current_price=150.0,
                              strike=145.0, expiry=0.25, option_type='put', volatility=0.25)
 
 # Comprehensive risk analysis
 portfolio_value = portfolio.calculate_portfolio_value()
 greeks = portfolio.calculate_portfolio_greeks()
 
-print(f"💼 Portfolio Risk Analytics:")
+print(f"Portfolio Risk Analytics:")
 print(f"Portfolio Value: ${portfolio_value:,.2f}")
 print(f"Portfolio Delta: {greeks['delta']:.2f}")
 print(f"Portfolio Gamma: {greeks['gamma']:.4f}")
@@ -357,45 +359,52 @@ print(f"Portfolio Theta: ${greeks['theta']:.2f}/day")
 var_95, es_95 = portfolio.calculate_var_parametric(0.95)
 var_99, es_99 = portfolio.calculate_var_parametric(0.99)
 
-print(f"\n📊 Risk Metrics:")
+print(f"\nRisk Metrics:")
 print(f"95% VaR: ${var_95:,.2f} | Expected Shortfall: ${es_95:,.2f}")
 print(f"99% VaR: ${var_99:,.2f} | Expected Shortfall: ${es_99:,.2f}")
 
 # Scenario analysis
-scenarios = portfolio.run_scenario_analysis()
-for scenario_name, pnl in scenarios.items():
-    print(f"{scenario_name}: ${pnl:,.2f}")
+scenarios = {
+    'Market Crash': {'AAPL': -0.20},
+    'Rally':        {'AAPL': 0.15},
+}
+results = portfolio.scenario_analysis(scenarios)
+for scenario_name, result in results.items():
+    print(f"{scenario_name}: ${result.portfolio_pnl:,.2f}")
 ```
 
-### 🧪 Testing
+### Testing
 
 DerivFlow Finance includes comprehensive institutional-grade validation:
 
 ```sh
-# Test individual modules
-python tests/test_pricing_engine.py
-python tests/test_exotic_options.py  
-python tests/test_portfolio_analytics.py
+# Run the full test suite
+pytest
 
-# Run comprehensive test suite
-python comprehensive_demo.py
+# Run a specific test package
+pytest tests/test_core/
+pytest tests/test_exotic/
+pytest tests/test_portfolio/
+
+# Skip slow and network/integration tests
+pytest -m "not slow and not integration"
 ```
 
 **Expected output:**
 ```
-🎉 DERIVFLOW-FINANCE COMPREHENSIVE TEST COMPLETE!
-✅ Multiple pricing methods validated with cross-verification
-✅ Complete Greeks suite (8 sensitivities) mathematically verified
-✅ Exotic options with 1496x variance reduction achieved
-✅ Live market data integration working flawlessly
-✅ Portfolio risk analytics with institutional accuracy
-✅ Volatility surface modeling with professional interpolation
-✨ DerivFlow Finance is production-ready for institutional use!
+DERIVFLOW-FINANCE COMPREHENSIVE TEST COMPLETE!
+Multiple pricing methods validated with cross-verification
+Complete Greeks suite (8 sensitivities) mathematically verified
+Exotic options with 1496x variance reduction achieved
+Live market data integration working flawlessly
+Portfolio risk analytics with institutional accuracy
+Volatility surface modeling with professional interpolation
+DerivFlow Finance is production-ready for institutional use!
 ```
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```sh
 └── derivflow-finance/
@@ -444,7 +453,7 @@ python comprehensive_demo.py
 
 ---
 
-### 📑 Project Index
+### Project Index
 
 <details open>
 	<summary><b><code>DERIVFLOW-FINANCE/</code></b></summary>
@@ -708,7 +717,7 @@ python comprehensive_demo.py
 
 ---
 
-## 🎯 Examples
+## Examples
 
 ### **Advanced Multi-Method Pricing Analysis**
 
@@ -719,10 +728,10 @@ from derivflow.greeks import GreeksCalculator
 # Cross-validation with multiple pricing methods
 params = {'S': 100, 'K': 105, 'T': 0.25, 'r': 0.05, 'sigma': 0.25, 'option_type': 'call'}
 
-print("🎯 Multi-Method Pricing Cross-Validation:")
+print("Multi-Method Pricing Cross-Validation:")
 bs_price = price_european_option(**params, method='black_scholes')
-binomial_price = price_european_option(**params, method='binomial', steps=1000)
-mc_price = price_european_option(**params, method='monte_carlo', simulations=100000)
+binomial_price = price_european_option(**params, method='binomial')
+mc_price = price_european_option(**params, method='monte_carlo')
 
 print(f"Black-Scholes: ${bs_price:.4f}")
 print(f"Binomial Tree: ${binomial_price:.4f} (Δ: {abs(bs_price-binomial_price):.4f})")
@@ -730,9 +739,9 @@ print(f"Monte Carlo:   ${mc_price:.4f} (±{mc_price*0.01:.4f})")
 
 # Complete Greeks analysis with advanced sensitivities
 calc = GreeksCalculator()
-greeks = calc.calculate_all_greeks(**params)
+greeks = calc.calculate_greeks(**params)
 
-print(f"\n📊 Complete Greeks Suite:")
+print(f"\nComplete Greeks Suite:")
 print(f"1st Order - Delta: {greeks.delta:.4f} | Theta: {greeks.theta:.4f} | Rho: {greeks.rho:.4f} | Vega: {greeks.vega:.4f}")
 print(f"2nd Order - Gamma: {greeks.gamma:.4f}")
 print(f"3rd Order - Volga: {greeks.volga:.4f} | Vanna: {greeks.vanna:.4f} | Speed: {greeks.speed:.6f}")
@@ -746,7 +755,7 @@ from derivflow.models import HestonModel
 
 # Professional barrier options analysis
 barrier = BarrierOptions()
-print("🎲 Barrier Options Professional Suite:")
+print("Barrier Options Professional Suite:")
 
 barrier_configs = [
     {'type': 'down_and_out', 'H': 95, 'description': 'Knock-out below $95'},
@@ -756,46 +765,46 @@ barrier_configs = [
 ]
 
 for config in barrier_configs:
-    result = barrier.price(S=100, K=105, H=config['H'], T=0.25, r=0.05, sigma=0.25, 
-                          barrier_type=config['type'], option_type='call', simulations=50000)
+    result = barrier.price(S=100, K=105, H=config['H'], T=0.25, r=0.05, sigma=0.25,
+                          barrier_type=config['type'], option_type='call')
     print(f"{config['type'].replace('_', '-').title()}: ${result.price:.4f} | "
-          f"Survival: {result.survival_prob:.1%} | {config['description']}")
+          f"Survival: {result.probability_survival:.1%} | {config['description']}")
 
 # Asian options with sophisticated variance reduction
-asian = AsianOptions()
-print(f"\n📈 Asian Options with Advanced Algorithms:")
+asian = AsianOptions(num_sims=50000)
+print(f"\nAsian Options with Advanced Algorithms:")
 
 # Geometric (closed-form analytical solution)
-geo_call = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25, 
+geo_call = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
                       option_type='call', asian_type='geometric')
-geo_put = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25, 
+geo_put = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
                      option_type='put', asian_type='geometric')
 
 print(f"Geometric Call: ${geo_call.price:.4f} (Analytical)")
 print(f"Geometric Put:  ${geo_put.price:.4f} (Analytical)")
 
 # Arithmetic with control variates (1496x variance reduction)
-arith_call = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25, 
-                        option_type='call', asian_type='arithmetic', 
-                        simulations=50000, use_control_variates=True)
-arith_put = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25, 
-                       option_type='put', asian_type='arithmetic', 
-                       simulations=50000, use_control_variates=True)
+arith_call = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
+                        option_type='call', asian_type='arithmetic',
+                        use_control_variate=True)
+arith_put = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
+                       option_type='put', asian_type='arithmetic',
+                       use_control_variate=True)
 
 print(f"Arithmetic Call: ${arith_call.price:.4f} ± {arith_call.std_error:.4f} (MC + Control Variates)")
 print(f"Arithmetic Put:  ${arith_put.price:.4f} ± {arith_put.std_error:.4f} (MC + Control Variates)")
-print(f"Variance Reduction: {arith_call.variance_reduction:.0f}x improvement!")
+print(f"Variance Reduction: {arith_call.convergence_info['variance_reduction_ratio']:.0f}x improvement!")
 
 # Advanced Heston stochastic volatility model
-print(f"\n🧠 Heston Stochastic Volatility Model:")
+print(f"\nHeston Stochastic Volatility Model:")
 heston = HestonModel()
-heston.set_parameters(v0=0.040, kappa=2.0, theta=0.040, sigma_v=0.3, rho=-0.7)
+heston.set_parameters(v0=0.040, kappa=2.0, theta=0.040, sigma=0.3, rho=-0.7)
 
-heston_result = heston.price_option(S=100, K=105, T=0.25, r=0.05, 
+heston_result = heston.price_option(S=100, K=105, T=0.25, r=0.05,
                                    option_type='call', method='monte_carlo')
 print(f"Heston Model Price: ${heston_result.price:.4f}")
-print(f"Model Parameters: v₀={heston.v0:.3f}, κ={heston.kappa:.1f}, θ={heston.theta:.3f}")
-print(f"                  σᵥ={heston.sigma_v:.1f}, ρ={heston.rho:.1f}")
+print(f"Model Parameters: v₀={heston.params.v0:.3f}, κ={heston.params.kappa:.1f}, θ={heston.params.theta:.3f}")
+print(f"                  σᵥ={heston.params.sigma:.1f}, ρ={heston.params.rho:.1f}")
 ```
 
 ### **Institutional Portfolio Risk Dashboard**
@@ -812,11 +821,11 @@ market_data = AdvancedMarketData()
 # Add diverse positions with live market data
 positions = [
     {'type': 'stock', 'symbol': 'AAPL', 'quantity': 100, 'price': 150.0, 'vol': 0.25},
-    {'type': 'option', 'symbol': 'AAPL', 'quantity': 10, 'spot': 150.0, 'strike': 155.0, 
+    {'type': 'option', 'symbol': 'AAPL', 'quantity': 10, 'spot': 150.0, 'strike': 155.0,
      'expiry': 0.25, 'option_type': 'call', 'vol': 0.25},
-    {'type': 'option', 'symbol': 'AAPL', 'quantity': -5, 'spot': 150.0, 'strike': 145.0, 
+    {'type': 'option', 'symbol': 'AAPL', 'quantity': -5, 'spot': 150.0, 'strike': 145.0,
      'expiry': 0.25, 'option_type': 'put', 'vol': 0.25},
-    {'type': 'option', 'symbol': 'AAPL', 'quantity': -20, 'spot': 150.0, 'strike': 160.0, 
+    {'type': 'option', 'symbol': 'AAPL', 'quantity': -20, 'spot': 150.0, 'strike': 160.0,
      'expiry': 0.5, 'option_type': 'call', 'vol': 0.23},
 ]
 
@@ -824,19 +833,19 @@ for pos in positions:
     if pos['type'] == 'stock':
         portfolio.add_stock_position(pos['symbol'], pos['quantity'], pos['price'], pos['vol'])
     else:
-        portfolio.add_option_position(pos['symbol'], pos['quantity'], pos['spot'], 
+        portfolio.add_option_position(pos['symbol'], pos['quantity'], pos['spot'],
                                     pos['strike'], pos['expiry'], pos['option_type'], pos['vol'])
 
 # Comprehensive portfolio analysis
 portfolio_value = portfolio.calculate_portfolio_value()
 greeks = portfolio.calculate_portfolio_greeks()
 
-print("💼 Institutional Portfolio Risk Dashboard:")
+print("Institutional Portfolio Risk Dashboard:")
 print("=" * 50)
 print(f"Portfolio Value: ${portfolio_value:,.2f}")
 print(f"Number of Positions: {len(positions)}")
 
-print(f"\n📊 Portfolio Greeks Summary:")
+print(f"\nPortfolio Greeks Summary:")
 print(f"Delta (Δ):     {greeks['delta']:>8.2f} | Price sensitivity")
 print(f"Gamma (Γ):     {greeks['gamma']:>8.4f} | Convexity measure")
 print(f"Theta (Θ):     {greeks['theta']:>8.2f} | Time decay (daily)")
@@ -844,29 +853,35 @@ print(f"Vega (ν):      {greeks['vega']:>8.2f} | Volatility sensitivity")
 print(f"Rho (ρ):       {greeks['rho']:>8.2f} | Interest rate sensitivity")
 
 # Advanced risk metrics with multiple confidence levels
-print(f"\n📈 Risk Metrics (Multiple Confidence Levels):")
+print(f"\nRisk Metrics (Multiple Confidence Levels):")
 for confidence in [0.95, 0.99]:
     var, es = portfolio.calculate_var_parametric(confidence)
     print(f"{confidence*100:.0f}% VaR:           ${var:>8,.0f} | Expected Shortfall: ${es:>8,.0f}")
 
 # Monte Carlo VaR with full distribution
-mc_var_95, mc_es_95 = portfolio.calculate_var_monte_carlo(0.95, simulations=10000)
+mc_var_95, mc_es_95 = portfolio.calculate_var_monte_carlo(0.95, num_sims=10000)
 print(f"95% MC VaR:        ${mc_var_95:>8,.0f} | Monte Carlo (10k sims)")
 
 # Professional scenario analysis
-print(f"\n🎯 Scenario Analysis:")
-scenarios = portfolio.run_scenario_analysis()
-for scenario_name, pnl in scenarios.items():
-    new_value = portfolio_value + pnl
-    print(f"{scenario_name:<12}: ${pnl:>8,.0f} | New Value: ${new_value:>10,.0f}")
+print(f"\nScenario Analysis:")
+scenarios = {
+    'Crash':     {'AAPL': -0.20},
+    'Selloff':   {'AAPL': -0.10},
+    'Rally':     {'AAPL': 0.10},
+    'Boom':      {'AAPL': 0.20},
+}
+results = portfolio.scenario_analysis(scenarios)
+for scenario_name, result in results.items():
+    print(f"{scenario_name:<12}: ${result.portfolio_pnl:>8,.0f} | "
+          f"New Value: ${result.new_portfolio_value:>10,.0f}")
 
 # Hedging recommendations
-hedge_recommendation = portfolio.calculate_hedge_ratio()
-print(f"\n🛡️  Hedging Recommendation:")
+hedge_recommendation = portfolio.calculate_hedge_ratio('AAPL')
+print(f"\n Hedging Recommendation:")
 print(f"Current Delta Exposure: {greeks['delta']:.2f}")
-print(f"Recommended Hedge: {hedge_recommendation['shares']:.0f} shares")
-print(f"Hedge Value: ${hedge_recommendation['value']:,.2f}")
-print(f"Post-Hedge Delta: {hedge_recommendation['residual_delta']:.2f}")
+print(f"Recommended Hedge: {hedge_recommendation['hedge_quantity']:.0f} shares")
+print(f"Hedge Value: ${hedge_recommendation['hedge_notional']:,.2f}")
+print(f"Post-Hedge Delta: {hedge_recommendation['hedged_portfolio_delta']:.2f}")
 ```
 
 ### **Professional Volatility Surface Analysis**
@@ -879,27 +894,28 @@ import numpy as np
 surface = create_sample_surface()
 surface.build_surface()
 
-print("🌊 Professional Volatility Surface Analysis:")
+stats = surface.surface_statistics()
+print("Professional Volatility Surface Analysis:")
 print("=" * 50)
-print(f"Surface Data Points: {surface.num_points}")
-print(f"Unique Expiries: {len(surface.expiries)}")
-print(f"Unique Strikes: {len(surface.strikes)}")
-print(f"Volatility Range: {surface.vol_range[0]:.1%} - {surface.vol_range[1]:.1%}")
-print(f"Mean Volatility: {surface.mean_vol:.1%}")
-print(f"Vol of Vol: {surface.vol_of_vol:.1%}")
+print(f"Surface Data Points: {stats['num_points']}")
+print(f"Unique Expiries: {stats['unique_expiries']}")
+print(f"Unique Strikes: {stats['unique_strikes']}")
+print(f"Volatility Range: {stats['min_volatility']:.1%} - {stats['max_volatility']:.1%}")
+print(f"Mean Volatility: {stats['mean_volatility']:.1%}")
+print(f"Vol of Vol: {stats['vol_of_vol']:.1%}")
 
 # Volatility smile analysis for different expiries
-print(f"\n📊 Volatility Smile Analysis:")
+print(f"\nVolatility Smile Analysis:")
 expiries = [0.25, 0.5, 0.75, 1.0]
 for expiry in expiries:
-    smile = surface.get_smile(expiry=expiry, num_points=5)
+    smile = surface.get_smile(expiry=expiry, strike_range=(90, 110), num_points=5)
     print(f"\n{expiry*12:.0f}M Expiry:")
-    for strike, vol in smile.items():
+    for strike, vol in zip(smile['strikes'], smile['volatilities']):
         moneyness = strike / 100  # Assuming S=100
         print(f"  K={strike:>5.0f} ({moneyness:.1%} moneyness): {vol:.1%}")
 
 # Advanced interpolation tests
-print(f"\n🎯 Interpolation Accuracy Tests:")
+print(f"\nInterpolation Accuracy Tests:")
 test_points = [
     {'K': 102, 'T': 0.33, 'description': 'Slightly OTM, 4M'},
     {'K': 98, 'T': 0.67, 'description': 'Slightly ITM, 8M'},
@@ -909,11 +925,12 @@ test_points = [
 
 for point in test_points:
     vol = surface.interpolate(strike=point['K'], expiry=point['T'])
-    print(f"{point['description']:<20}: K={point['K']}, T={point['T']:.2f}y → σ={vol:.1%}")
+    print(f"{point['description']:<20}: K={point['K']}, T={point['T']:.2f}y -> σ={vol:.1%}")
 
 # Term structure analysis
-print(f"\n📈 Term Structure Analysis (ATM):")
-term_structure = surface.get_term_structure(strike=100, expiries=np.linspace(0.1, 2.0, 8))
+print(f"\nTerm Structure Analysis (ATM):")
+term_structure = {expiry: surface.interpolate(strike=100, expiry=expiry)
+                  for expiry in np.linspace(0.1, 1.0, 8)}
 for expiry, vol in term_structure.items():
     print(f"  {expiry*12:>4.0f}M: {vol:.1%}")
 ```
@@ -926,7 +943,7 @@ python comprehensive_demo.py
 
 ---
 
-## 🎓 Educational Applications
+## Educational Applications
 
 **Learning Outcomes:**
 - Master advanced derivatives pricing across multiple methodologies (analytical, numerical, simulation)
@@ -950,7 +967,7 @@ python comprehensive_demo.py
 
 ---
 
-## 📈 Roadmap
+## Roadmap
 
 - [X] **Multi-Method Pricing Engine**: Black-Scholes, Binomial, Monte Carlo with cross-validation
 - [X] **Complete Greeks Calculator**: All 8 sensitivities including Volga, Vanna, Speed validated
@@ -973,11 +990,11 @@ python comprehensive_demo.py
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-- **💬 [Join the Discussions](https://github.com/jeevanba273/derivflow-finance/discussions)**: Share insights about derivatives pricing, exotic options strategies, and quantitative finance research
-- **🐛 [Report Issues](https://github.com/jeevanba273/derivflow-finance/issues)**: Submit bugs or request new derivatives models and advanced features
-- **💡 [Submit Pull Requests](https://github.com/jeevanba273/derivflow-finance/blob/main/CONTRIBUTING.md)**: Contribute new pricing models, optimization algorithms, or documentation improvements
+- **[Join the Discussions](https://github.com/jeevanba273/derivflow-finance/discussions)**: Share insights about derivatives pricing, exotic options strategies, and quantitative finance research
+- **[Report Issues](https://github.com/jeevanba273/derivflow-finance/issues)**: Submit bugs or request new derivatives models and advanced features
+- **[Submit Pull Requests](https://github.com/jeevanba273/derivflow-finance/blob/main/CONTRIBUTING.md)**: Contribute new pricing models, optimization algorithms, or documentation improvements
 
 <details closed>
 <summary>Contributing Guidelines</summary>
@@ -1017,7 +1034,7 @@ python comprehensive_demo.py
 
 ---
 
-## 📜 License
+## License
 
 DerivFlow Finance is protected under the [MIT License](https://choosealicense.com/licenses/mit/). For more details, refer to the [LICENSE](https://choosealicense.com/licenses/mit/) file.
 
@@ -1025,7 +1042,7 @@ DerivFlow Finance is protected under the [MIT License](https://choosealicense.co
 
 ---
 
-## ✨ Acknowledgments
+## Acknowledgments
 
 - **Black & Scholes (1973)**: *The Pricing of Options and Corporate Liabilities* - Foundation of modern derivatives theory
 - **Heston (1993)**: *A Closed-Form Solution for Options with Stochastic Volatility* - Stochastic volatility modeling
@@ -1046,7 +1063,7 @@ DerivFlow Finance is protected under the [MIT License](https://choosealicense.co
 
 ---
 
-## 📞 Contact & Support
+## Contact & Support
 
 - **Author**: Jeevan B A
 - **Email**: jeevanba273@gmail.com
@@ -1061,11 +1078,11 @@ DerivFlow Finance is protected under the [MIT License](https://choosealicense.co
 
 <div align="center">
 
-**⭐ Star this repository if DerivFlow Finance advances your derivatives analytics and quantitative finance projects!**
+**Star this repository if DerivFlow Finance advances your derivatives analytics and quantitative finance projects!**
 
-**🚀 Built for the global derivatives community by Jeevan B A**
+**Built for the global derivatives community by Jeevan B A**
 
-**🏆 Institutional-Grade • Production-Ready • Research-Quality**
+**Institutional-Grade - Production-Ready - Research-Quality**
 
 ---
 
@@ -1073,5 +1090,5 @@ DerivFlow Finance is protected under the [MIT License](https://choosealicense.co
 
 </div>
 
-<div align="left"><a href="#top">⬆ Return</a></div>
+<div align="left"><a href="#top">Return</a></div>
 

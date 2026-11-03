@@ -3,7 +3,7 @@
 [![CI](https://github.com/jeevanba273/derivflow-finance/actions/workflows/ci.yml/badge.svg)](https://github.com/jeevanba273/derivflow-finance/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/derivflow-finance)](https://pypi.org/project/derivflow-finance/)
 [![Python versions](https://img.shields.io/pypi/pyversions/derivflow-finance)](https://pypi.org/project/derivflow-finance/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/jeevanba273/derivflow-finance/blob/main/LICENSE)
 
 derivflow is a Python library for pricing equity-style options and measuring the risk of small
 option books: the Black-Scholes-Merton closed form and Greeks, implied volatility, binomial
@@ -97,7 +97,7 @@ K=120: Heston call 1.6863, implied vol 0.1642
 1-day 99% VaR, full revaluation: 3,708 (ES 4,287)
 ```
 
-More scripts are in [`examples/`](examples/) and the [user guide](https://derivflow-finance.readthedocs.io).
+More scripts are in [`examples/`](https://github.com/jeevanba273/derivflow-finance/tree/main/examples) and the [user guide](https://derivflow-finance.readthedocs.io).
 
 ## Validation
 
@@ -178,7 +178,7 @@ a user guide per area, the API reference, methods and references, validation and
 
 ## Contributing, citing, licence
 
-Bug reports and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). To cite
-derivflow, use the metadata in [CITATION.cff](CITATION.cff). Released under the MIT licence.
+Bug reports and pull requests are welcome; see [CONTRIBUTING.md](https://github.com/jeevanba273/derivflow-finance/blob/main/CONTRIBUTING.md). To cite
+derivflow, use the metadata in [CITATION.cff](https://github.com/jeevanba273/derivflow-finance/blob/main/CITATION.cff). Released under the MIT licence.
 
 For research and education; not investment advice.

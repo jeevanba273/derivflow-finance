@@ -149,3 +149,26 @@ def test_call_price_rising_with_strike_is_vertical_spread_arbitrage():
     res = _check([0.10, 0.80], strikes=[100.0, 102.0])
     assert res["vertical_spread_arbitrage"]
     assert not res["arbitrage_free"]
+
+
+def test_load_market_data_accepts_chain_rows_and_skips_unsolved_quotes():
+    """Rows from implied_vol_from_chain (with option_type and possibly NaN
+    volatility) load directly; quotes without a volatility are skipped."""
+    from derivflow import black_scholes_price, implied_vol_from_chain
+    from derivflow.volatility.surface import VolatilitySurface
+
+    chain = [
+        {
+            "strike": k,
+            "expiry": 0.5,
+            "option_type": "call",
+            "market_price": black_scholes_price(100.0, k, 0.5, 0.03, 0.25, "call"),
+        }
+        for k in (90.0, 100.0, 110.0)
+    ]
+    chain.append({"strike": 60.0, "expiry": 0.5, "option_type": "call", "market_price": 1.0})
+    rows = implied_vol_from_chain(chain, S=100.0, r=0.03)
+    surface = VolatilitySurface()
+    surface.load_market_data([{**row, "volume": 5, "open_interest": 7} for row in rows])
+    assert len(surface.vol_data) == 3
+    assert all(p.volatility == pytest.approx(0.25, abs=1e-9) for p in surface.vol_data)

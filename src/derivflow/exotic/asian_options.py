@@ -391,8 +391,8 @@ class AsianOptions:
             'analytical' or 'monte_carlo'.
         num_steps : int
             Number of fixings for discrete averaging.
-        **kwargs
-            ``use_control_variate`` for the arithmetic Monte Carlo.
+        kwargs
+            Keyword arguments: ``use_control_variate`` for the arithmetic Monte Carlo.
 
         Returns:
         --------
@@ -540,19 +540,19 @@ class AsianOptions:
                 down = value(S * (1 - bump_size), K, T, r, sigma)
                 delta = (up - down) / (2 * S * bump_size)
                 gamma = (up - 2 * base_price + down) / (S * bump_size) ** 2
-                return {"delta": delta, "gamma": gamma}
+                return {"delta": float(delta), "gamma": float(gamma)}
             if param == "volatility":
                 up = value(S, K, T, r, sigma * (1 + bump_size))
                 down = value(S, K, T, r, sigma * (1 - bump_size))
-                return {"vega": (up - down) / (2 * sigma * bump_size)}
+                return {"vega": float((up - down) / (2 * sigma * bump_size))}
             if param == "rate":
                 up = value(S, K, T, r + bump_size, sigma)
                 down = value(S, K, T, r - bump_size, sigma)
-                return {"rho": (up - down) / (2 * bump_size)}
+                return {"rho": float((up - down) / (2 * bump_size))}
             if param == "time":
                 up = value(S, K, T + bump_size, r, sigma)
                 down = value(S, K, T - bump_size, r, sigma)
-                return {"theta": -(up - down) / (2 * bump_size)}
+                return {"theta": float(-(up - down) / (2 * bump_size))}
             raise ValueError(f"Unknown parameter: {param}")
         finally:
             self.rng = main_rng

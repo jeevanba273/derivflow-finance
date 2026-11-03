@@ -10,7 +10,7 @@ the information about volatility. The volatility is then found by a
 safeguarded Newton iteration ("rtsafe", Press et al., Numerical Recipes,
 section 9.4) on the logarithm of that price, which stays well scaled deep in
 the wings: Newton steps start from the Manaster and Koehler (1982) point
-sigma0 = sqrt(2 |ln(F/K)| / T), a bracket [lo, hi] is kept from the sign of
+sigma0 = sqrt(2 abs(ln(F/K)) / T), a bracket [lo, hi] is kept from the sign of
 the error, and bisection replaces any Newton step that leaves the bracket or
 fails to halve the previous step. Iteration stops when the change in
 volatility, or the bracket width, is below ``tol`` (absolute, default 1e-12).

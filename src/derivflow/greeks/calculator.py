@@ -124,19 +124,20 @@ class GreeksCalculator:
         Closed-form Greeks of a European option.
 
         With d1, d2 as in Black-Scholes-Merton, phi the normal density and
-        N the normal CDF (call shown; puts follow from parity):
+        N the normal CDF (call shown; puts follow from parity)::
 
-        delta = e^{-qT} N(d1); gamma = e^{-qT} phi(d1) / (S sigma sqrt(T));
-        vega = S e^{-qT} phi(d1) sqrt(T);
-        theta = -S e^{-qT} phi(d1) sigma / (2 sqrt(T)) - r K e^{-rT} N(d2)
-                + q S e^{-qT} N(d1);
-        rho = K T e^{-rT} N(d2); volga = vega d1 d2 / sigma;
-        vanna = -e^{-qT} phi(d1) d2 / sigma;
-        speed = -gamma (d1 / (sigma sqrt(T)) + 1) / S;
-        zomma = gamma (d1 d2 - 1) / sigma;
-        color = gamma (q + (r - q) d1 / (sigma sqrt(T)) + (1 - d1 d2) / (2T)),
+            delta = e^{-qT} N(d1)
+            gamma = e^{-qT} phi(d1) / (S sigma sqrt(T))
+            vega  = S e^{-qT} phi(d1) sqrt(T)
+            theta = -S e^{-qT} phi(d1) sigma / (2 sqrt(T)) - r K e^{-rT} N(d2) + q S e^{-qT} N(d1)
+            rho   = K T e^{-rT} N(d2)
+            volga = vega d1 d2 / sigma
+            vanna = -e^{-qT} phi(d1) d2 / sigma
+            speed = -gamma (d1 / (sigma sqrt(T)) + 1) / S
+            zomma = gamma (d1 d2 - 1) / sigma
+            color = gamma (q + (r - q) d1 / (sigma sqrt(T)) + (1 - d1 d2) / (2T))
 
-        then scaled to the units in the module docstring. At expiry (T <= 0)
+        These are then scaled to the units in the module docstring. At expiry (T <= 0)
         delta is the payoff slope and the other Greeks are 0.
 
         Parameters:
@@ -453,8 +454,8 @@ class GreeksCalculator:
             Custom pricing function for numerical Greeks
         q : float, keyword-only
             Continuous dividend yield (default 0.0 reproduces classic Black-Scholes)
-        **kwargs
-            Additional parameters
+        kwargs
+            Keyword arguments: Additional parameters
 
         Returns:
         --------

@@ -439,8 +439,8 @@ class PricingEngine:
             'black_scholes', 'binomial' or 'monte_carlo'.
         S, K, T, r, sigma, option_type
             As in :meth:`BlackScholesAnalytical.price`.
-        **kwargs
-            Passed to the pricer, e.g. ``q`` (all methods) or ``american``
+        kwargs
+            Keyword arguments: Passed to the pricer, e.g. ``q`` (all methods) or ``american``
             (binomial).
 
         Returns:

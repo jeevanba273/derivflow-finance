@@ -440,15 +440,14 @@ def _normalize_chain(chain: Any, price_field: str) -> list[dict]:
     return rows
 
 
-def _expiry_to_years(expiry) -> float | None:
-    """Convert an expiry (already-numeric years, or a YYYY-MM-DD date string) to years."""
+def _expiry_to_years(expiry: Any) -> float | None:
+    """Years to expiry: numeric values are taken as years; 'YYYY-MM-DD' strings
+    and dates use ACT/365 to 16:00 New York time (see derivflow._dates)."""
     if isinstance(expiry, (int, float)):
         return float(expiry)
     try:
-        from datetime import datetime
+        from .._dates import year_fraction_to_expiry
 
-        exp = datetime.strptime(str(expiry), "%Y-%m-%d")
-        days = (exp - datetime.now()).days
-        return max(days, 0) / 365.0
+        return year_fraction_to_expiry(expiry)
     except (ValueError, TypeError):
         return None

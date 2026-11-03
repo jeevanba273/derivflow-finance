@@ -672,7 +672,7 @@ class DerivativesDashboard:
         try:
             # Get market data
             S, _ = self.market_data.get_current_price(symbol)
-            r = self.market_data._get_risk_free_rate()
+            r = self.market_data.get_risk_free_rate()
 
             # Use standard parameters for demo
             K = S * 1.05  # 5% OTM

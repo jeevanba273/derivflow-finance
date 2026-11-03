@@ -1,9 +1,4 @@
-"""
-DERIVFLOW-FINANCE: Utility Functions
-===================================
-
-Market data integration and utility functions.
-"""
+"""Optional Yahoo Finance market data (requires the ``[data]`` extra)."""
 
 from .market_data import AdvancedMarketData, MarketDataResult, OptionData
 

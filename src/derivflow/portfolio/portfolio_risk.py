@@ -11,12 +11,24 @@ Professional-grade portfolio risk management and analytics:
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 from scipy import stats
 
 from ..core.pricing_engine import PricingEngine, price_european_option
 from ..greeks.calculator import GreeksCalculator
+
+
+TRADING_DAYS_PER_YEAR = 252
+"""Annualisation convention: volatilities are annual, horizons are trading days."""
+
+
+def _check_var_inputs(confidence_level: float, time_horizon: float) -> None:
+    if not 0.0 < confidence_level < 1.0:
+        raise ValueError("confidence_level must be in (0, 1)")
+    if time_horizon <= 0:
+        raise ValueError("time_horizon must be positive (trading days)")
 
 
 @dataclass
@@ -98,23 +110,94 @@ class PortfolioRiskAnalyzer:
     - Optimal hedging recommendations
     """
 
-    def __init__(self, risk_free_rate: float = 0.05):
+    def __init__(self, risk_free_rate: float = 0.05, contract_multiplier: float = 100.0):
         """
         Initialize portfolio risk analyzer
 
         Parameters:
         -----------
         risk_free_rate : float
-            Risk-free rate for calculations
+            Continuously compounded risk-free rate used to price options.
+        contract_multiplier : float
+            Units of the underlying per option contract (default 100).
         """
-        self.positions = []
+        self.positions: list[Position] = []
         self.risk_free_rate = risk_free_rate
+        self.contract_multiplier = float(contract_multiplier)
         self.pricing_engine = PricingEngine()
         self.greeks_calc = GreeksCalculator()
+        self._corr_symbols: list[str] | None = None
+        self._corr_matrix: np.ndarray | None = None
 
-        # Historical data for calculations
-        self.returns_data = {}
-        self.correlation_matrix = None
+    # ------------------------------------------------------------------
+    # Underlyings, exposures and correlation
+    # ------------------------------------------------------------------
+    def underlyings(self) -> list[str]:
+        """Distinct underlying symbols, in the order they were first added."""
+        return list(dict.fromkeys(p.symbol for p in self.positions))
+
+    def _underlying_spot(self, symbol: str) -> float:
+        return next(p.current_price for p in self.positions if p.symbol == symbol)
+
+    def _underlying_volatility(self, symbol: str) -> float:
+        """Annualised return volatility of an underlying.
+
+        Taken from a stock position in that symbol if there is one, otherwise
+        from the first option position (its implied volatility is then used as
+        the proxy for the underlying's volatility).
+        """
+        stocks = [p for p in self.positions if p.symbol == symbol and p.position_type == "stock"]
+        source = stocks[0] if stocks else next(p for p in self.positions if p.symbol == symbol)
+        if not source.volatility or source.volatility <= 0:
+            raise ValueError(f"No positive volatility available for {symbol!r}")
+        return float(source.volatility)
+
+    def dollar_delta_by_underlying(self) -> dict[str, float]:
+        """Delta exposure per underlying in currency units: sum of quantity x
+        multiplier x delta x spot (stocks have delta 1 and multiplier 1)."""
+        exposure = dict.fromkeys(self.underlyings(), 0.0)
+        for p in self.positions:
+            if p.position_type == "stock":
+                exposure[p.symbol] += p.quantity * p.current_price
+            elif p.position_type == "option":
+                exposure[p.symbol] += (
+                    p.quantity * self.contract_multiplier * (p.delta or 0.0) * p.current_price
+                )
+        return exposure
+
+    def set_correlation(self, symbols: list[str], matrix: Any) -> None:
+        """Set the correlation of daily returns between underlyings.
+
+        Underlyings not listed are treated as uncorrelated with all others,
+        which is also the default when no matrix is set.
+        """
+        C = np.asarray(matrix, dtype=float)
+        n = len(symbols)
+        if C.shape != (n, n):
+            raise ValueError(f"correlation matrix must be {n}x{n}")
+        if not np.allclose(C, C.T, atol=1e-12):
+            raise ValueError("correlation matrix must be symmetric")
+        if not np.allclose(np.diag(C), 1.0, atol=1e-12) or np.any(np.abs(C) > 1 + 1e-12):
+            raise ValueError("correlation matrix needs a unit diagonal and entries in [-1, 1]")
+        if np.linalg.eigvalsh(C).min() < -1e-10:
+            raise ValueError("correlation matrix must be positive semi-definite")
+        self._corr_symbols = list(symbols)
+        self._corr_matrix = C
+
+    def _correlation(self, symbols: list[str]) -> np.ndarray:
+        C = np.eye(len(symbols))
+        if self._corr_matrix is not None and self._corr_symbols is not None:
+            index = {s: n for n, s in enumerate(self._corr_symbols)}
+            for a, sa in enumerate(symbols):
+                for b, sb in enumerate(symbols):
+                    if sa in index and sb in index:
+                        C[a, b] = self._corr_matrix[index[sa], index[sb]]
+        return C
+
+    def _daily_covariance(self, symbols: list[str]) -> np.ndarray:
+        vols = np.array([self._underlying_volatility(s) for s in symbols])
+        daily = vols / np.sqrt(TRADING_DAYS_PER_YEAR)
+        return np.outer(daily, daily) * self._correlation(symbols)
 
     def add_stock_position(
         self,
@@ -278,53 +361,45 @@ class PortfolioRiskAnalyzer:
         self, confidence_level: float = 0.95, time_horizon: int = 1
     ) -> tuple[float, float]:
         """
-        Calculate VaR using parametric (delta-normal) method
+        Delta-normal (variance-covariance) VaR and expected shortfall.
+
+        With e the vector of dollar deltas per underlying (see
+        :meth:`dollar_delta_by_underlying`) and Sigma the covariance of daily
+        log-returns, built from annualised volatilities divided by sqrt(252)
+        and the correlation set with :meth:`set_correlation` (identity by
+        default), the P&L over h trading days is taken as normal with mean 0
+        and standard deviation s = sqrt(e^T Sigma e) * sqrt(h). Then
+
+            VaR = z_c * s,   ES = phi(z_c) / (1 - c) * s,   z_c = N^{-1}(c).
+
+        This is the RiskMetrics (1996) linear approximation: gamma, vega and
+        theta are ignored, so for option books it is a first-order estimate;
+        use :meth:`calculate_var_monte_carlo` for full revaluation.
 
         Parameters:
         -----------
         confidence_level : float
-            Confidence level (0.95 for 95% VaR)
+            c in (0, 1), e.g. 0.99.
         time_horizon : int
-            Time horizon in days
+            Horizon h in trading days.
 
         Returns:
         --------
         Tuple[float, float]
-            (VaR, Expected Shortfall)
+            (VaR, expected shortfall) as positive loss amounts.
         """
-        # Get portfolio Greeks
-        greeks = self.calculate_portfolio_greeks()
-        portfolio_delta = greeks["delta"]
-        portfolio_gamma = greeks["gamma"]
-
-        # Estimate portfolio volatility (simplified approach)
-        # In practice, you'd use full covariance matrix
-        portfolio_volatility = 0.0
-
-        for position in self.positions:
-            if position.volatility:
-                # Weight by position's contribution to portfolio delta
-                weight = abs(position.quantity * position.current_price)
-                portfolio_volatility += (weight * position.volatility) ** 2
-
-        portfolio_volatility = np.sqrt(portfolio_volatility) / self.calculate_portfolio_value()
-
-        # Adjust for time horizon
-        volatility_adjusted = portfolio_volatility * np.sqrt(time_horizon)
-
-        # Calculate VaR (using normal distribution assumption)
-        z_score = stats.norm.ppf(confidence_level)
-        portfolio_value = self.calculate_portfolio_value()
-
-        # Delta-normal VaR
-        var = portfolio_value * volatility_adjusted * z_score
-
-        # Expected Shortfall (Conditional VaR)
-        expected_shortfall = (
-            portfolio_value * volatility_adjusted * stats.norm.pdf(z_score) / (1 - confidence_level)
-        )
-
-        return var, expected_shortfall
+        _check_var_inputs(confidence_level, time_horizon)
+        symbols = self.underlyings()
+        if not symbols:
+            return 0.0, 0.0
+        exposure = self.dollar_delta_by_underlying()
+        e = np.array([exposure[s] for s in symbols])
+        variance = float(e @ self._daily_covariance(symbols) @ e)
+        sigma = np.sqrt(max(variance, 0.0) * time_horizon)
+        z = stats.norm.ppf(confidence_level)
+        var = z * sigma
+        expected_shortfall = stats.norm.pdf(z) / (1.0 - confidence_level) * sigma
+        return float(var), float(expected_shortfall)
 
     def calculate_var_monte_carlo(
         self, confidence_level: float = 0.95, time_horizon: int = 1, num_sims: int = 10000

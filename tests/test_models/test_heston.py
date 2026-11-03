@@ -107,8 +107,15 @@ def test_monte_carlo_full_truncation_euler_scheme_runs():
     model.set_parameters(0.04, 2.0, 0.04, 0.3, -0.7)
     analytic = model.analytic_price(100.0, 100.0, 1.0, 0.05, "call")
     mc = model.monte_carlo_price(
-        100.0, 100.0, 1.0, 0.05, "call", num_sims=100_000, num_steps=100,
-        scheme="euler", random_seed=4,
+        100.0,
+        100.0,
+        1.0,
+        0.05,
+        "call",
+        num_sims=100_000,
+        num_steps=100,
+        scheme="euler",
+        random_seed=4,
     )
     assert abs(mc.price - analytic) < 4 * mc.std_error
 

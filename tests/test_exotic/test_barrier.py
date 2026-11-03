@@ -130,7 +130,6 @@ def test_survival_probability_matches_monte_carlo(H):
     assert abs(p_mc - p_formula) < 4 * se + 2e-3
 
 
-
 def test_monte_carlo_survival_probability_is_the_same_quantity_for_in_and_out():
     """probability_survival is P(barrier not touched) for knock-in and knock-out alike."""
     out = BarrierOptions(random_seed=11).monte_carlo_price(

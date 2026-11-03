@@ -17,8 +17,15 @@ CASES = [
 def test_confidence_interval_contains_black_scholes(bs_ref, method, S, K, T, r, sigma, ot, q):
     eng = MonteCarloEngine(num_sims=200_000, random_seed=2024)
     res = eng.price(
-        S, K, T, r, sigma, ot, q=q,
-        antithetic=method == "antithetic", control_variate=method == "control_variate",
+        S,
+        K,
+        T,
+        r,
+        sigma,
+        ot,
+        q=q,
+        antithetic=method == "antithetic",
+        control_variate=method == "control_variate",
     )
     truth = bs_ref(S, K, T, r, sigma, ot, q)
     lo, hi = res["confidence_interval"]

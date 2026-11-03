@@ -26,7 +26,7 @@ def test_single_call_delta_aggregation():
 def test_parametric_var_ordering():
     analyzer = create_sample_portfolio()
     var95, es95 = analyzer.calculate_var_parametric(0.95)
-    var99, es99 = analyzer.calculate_var_parametric(0.99)
+    var99, _ = analyzer.calculate_var_parametric(0.99)
     assert var95 > 0 and var99 > 0
     assert var95 < var99  # higher confidence -> larger VaR
     assert es95 >= var95  # expected shortfall is at least VaR
@@ -47,32 +47,49 @@ def test_dividend_yield_consistent_in_valuation():
 
 def _two_underlying_book():
     pa = PortfolioRiskAnalyzer(risk_free_rate=0.05)
-    pa.add_option_position("AAPL", 10, 150.0, 155.0, 0.25, "call", 0.25)
-    pa.add_stock_position("MSFT", 100, 300.0, 0.22)
+    pa.add_option_position("ASSET_A", 10, 150.0, 155.0, 0.25, "call", 0.25)
+    pa.add_stock_position("ASSET_B", 100, 300.0, 0.22)
     return pa
 
 
 def test_hedge_ratio_only_uses_the_hedged_underlying():
     pa = _two_underlying_book()
     call_delta = GreeksCalculator().calculate_greeks(150.0, 155.0, 0.25, 0.05, 0.25, "call").delta
-    hedge = pa.calculate_hedge_ratio("AAPL")
+    hedge = pa.calculate_hedge_ratio("ASSET_A")
     assert hedge["current_portfolio_delta"] == pytest.approx(10 * 100 * call_delta, rel=1e-12)
     assert hedge["hedge_quantity"] == pytest.approx(-10 * 100 * call_delta, rel=1e-12)
     assert hedge["hedged_portfolio_delta"] == pytest.approx(0.0, abs=1e-9)
-    assert pa.calculate_hedge_ratio("MSFT")["hedge_quantity"] == pytest.approx(-100.0)
+    assert pa.calculate_hedge_ratio("ASSET_B")["hedge_quantity"] == pytest.approx(-100.0)
 
 
 def test_greeks_by_underlying():
     pa = _two_underlying_book()
     by = pa.calculate_greeks_by_underlying()
-    assert set(by) == {"AAPL", "MSFT"}
-    assert by["MSFT"]["delta"] == pytest.approx(100.0)
-    assert by["MSFT"]["gamma"] == 0.0
+    assert set(by) == {"ASSET_A", "ASSET_B"}
+    assert by["ASSET_B"]["delta"] == pytest.approx(100.0)
+    assert by["ASSET_B"]["gamma"] == 0.0
 
 
 def test_risk_contributions_are_component_var_and_sum_to_var():
     pa = _two_underlying_book()
-    pa.set_correlation(["AAPL", "MSFT"], [[1.0, 0.5], [0.5, 1.0]])
+    pa.set_correlation(["ASSET_A", "ASSET_B"], [[1.0, 0.5], [0.5, 1.0]])
     report = pa.generate_risk_report()
-    assert set(report.risk_contributions) == {"AAPL", "MSFT"}
+    assert set(report.risk_contributions) == {"ASSET_A", "ASSET_B"}
     assert sum(report.risk_contributions.values()) == pytest.approx(report.var_95, rel=1e-12)
+
+
+def test_scenario_full_revaluation_and_delta_gamma():
+    from derivflow.core.pricing_engine import black_scholes_price
+
+    pa = PortfolioRiskAnalyzer(risk_free_rate=0.03)
+    pa.add_option_position("X", 2, 100.0, 100.0, 0.5, "call", 0.25)
+    pa.add_stock_position("X", -50, 100.0, 0.25)
+    res = pa.scenario_analysis({"down": {"X": -0.2}})["down"]
+    v0 = black_scholes_price(100.0, 100.0, 0.5, 0.03, 0.25)
+    v1 = black_scholes_price(80.0, 100.0, 0.5, 0.03, 0.25)
+    assert res.portfolio_pnl == pytest.approx(2 * 100 * (v1 - v0) - 50 * -20.0, rel=1e-12)
+
+    p = pa.positions[0]
+    approx = pa.scenario_analysis({"down": {"X": -0.2}}, method="delta_gamma")["down"]
+    expected = 2 * 100 * (p.delta * -20.0 + 0.5 * p.gamma * 400.0) + 1000.0
+    assert approx.portfolio_pnl == pytest.approx(expected, rel=1e-12)

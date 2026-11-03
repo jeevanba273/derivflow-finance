@@ -66,9 +66,7 @@ def test_two_assets_with_correlation(rho):
     pa.set_correlation(["A", "B"], [[1.0, rho], [rho, 1.0]])
     e = np.array([100 * 50.0, -40 * 200.0])
     s = np.array([0.30, 0.20]) / np.sqrt(252)
-    sigma_p = np.sqrt(
-        (e[0] * s[0]) ** 2 + (e[1] * s[1]) ** 2 + 2 * rho * e[0] * e[1] * s[0] * s[1]
-    )
+    sigma_p = np.sqrt((e[0] * s[0]) ** 2 + (e[1] * s[1]) ** 2 + 2 * rho * e[0] * e[1] * s[0] * s[1])
     var, es = pa.calculate_var_parametric(0.99)
     assert var == pytest.approx(Z99 * sigma_p, rel=1e-12)
     assert es == pytest.approx(ES99 * sigma_p, rel=1e-12)

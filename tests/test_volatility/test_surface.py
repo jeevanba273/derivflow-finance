@@ -1,4 +1,5 @@
 """Volatility surface: sample construction, grid shape, and interpolation."""
+
 import pytest
 
 

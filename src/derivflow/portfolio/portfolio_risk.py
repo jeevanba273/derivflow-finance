@@ -1,14 +1,28 @@
 """
-DERIVFLOW-FINANCE: Portfolio Risk Analytics Engine
-=================================================
+Risk of a book of stocks and European options on one or more underlyings.
 
-Professional-grade portfolio risk management and analytics:
-- Value-at-Risk (VaR) calculation (parametric, historical, Monte Carlo)
-- Portfolio Greeks aggregation and hedging
-- Correlation analysis and risk decomposition
-- Scenario analysis and stress testing
-- Risk attribution and marginal contributions
+Conventions:
+
+- Volatilities are annualised; VaR horizons are in trading days and a horizon
+  of h days has standard deviation sigma * sqrt(h / 252)
+  (``TRADING_DAYS_PER_YEAR``).
+- Option quantities are contracts of ``contract_multiplier`` units (100 by
+  default); options are priced with Black-Scholes-Merton at the position's
+  implied volatility.
+- VaR and expected shortfall are positive loss amounts in currency units.
+
+Methods: delta-normal VaR (:meth:`PortfolioRiskAnalyzer.calculate_var_parametric`),
+Monte Carlo VaR by full revaluation
+(:meth:`PortfolioRiskAnalyzer.calculate_var_monte_carlo`), component VaR,
+Greeks per underlying, delta hedge ratios and scenario P&L. Historical VaR
+on a P&L series is available in :mod:`derivflow.portfolio.risk_measures`.
+
+Limitations: volatilities and correlations are inputs (not estimated), there
+is no volatility or rate risk in the VaR, and the underlyings' returns are
+jointly lognormal.
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
@@ -18,7 +32,6 @@ from scipy import stats
 
 from ..core.pricing_engine import PricingEngine, price_european_option
 from ..greeks.calculator import GreeksCalculator
-
 
 TRADING_DAYS_PER_YEAR = 252
 """Annualisation convention: volatilities are annual, horizons are trading days."""
@@ -33,24 +46,25 @@ def _check_var_inputs(confidence_level: float, time_horizon: float) -> None:
 
 @dataclass
 class Position:
-    """Individual position in the portfolio"""
+    """One position. ``current_price`` is the underlying's price (also for
+    options); ``quantity`` is shares or contracts, negative for short;
+    ``expiry`` is in years; ``volatility`` is annualised (the option's implied
+    volatility for options). Greeks are per unit of the option, in the units
+    of :class:`~derivflow.greeks.calculator.GreeksResult`."""
 
     symbol: str
-    position_type: str  # 'stock', 'option', 'bond'
-    quantity: float  # Number of shares/contracts (positive = long, negative = short)
+    position_type: str  # 'stock' or 'option'
+    quantity: float
     current_price: float
 
-    # Option-specific fields
     strike: float | None = None
-    expiry: float | None = None  # Time to expiry in years
-    option_type: str | None = None  # 'call' or 'put'
+    expiry: float | None = None
+    option_type: str | None = None
 
-    # Market parameters
     volatility: float | None = None
     risk_free_rate: float | None = None
     dividend_yield: float | None = None
 
-    # Greeks (will be calculated)
     delta: float | None = None
     gamma: float | None = None
     theta: float | None = None
@@ -91,7 +105,7 @@ class RiskMetrics:
 
 @dataclass
 class ScenarioResult:
-    """Scenario analysis result"""
+    """P&L of the book when each underlying's spot moves by a relative change."""
 
     scenario_name: str
     spot_changes: dict[str, float]  # Symbol -> % change
@@ -101,16 +115,8 @@ class ScenarioResult:
 
 
 class PortfolioRiskAnalyzer:
-    """
-    Comprehensive portfolio risk analytics engine
-
-    Provides institutional-grade risk management capabilities:
-    - Multi-asset portfolio construction and valuation
-    - VaR calculation using multiple methodologies
-    - Greeks aggregation and risk decomposition
-    - Scenario analysis and stress testing
-    - Optimal hedging recommendations
-    """
+    """Book of stock and European option positions; see the module docstring
+    for conventions and limitations."""
 
     def __init__(self, risk_free_rate: float = 0.05, contract_multiplier: float = 100.0):
         """
@@ -274,17 +280,6 @@ class PortfolioRiskAnalyzer:
         dividend_yield : float
             Dividend yield
         """
-        # Calculate option price and Greeks (forwarding the dividend yield)
-        option_price = price_european_option(
-            current_price,
-            strike,
-            expiry,
-            self.risk_free_rate,
-            volatility,
-            option_type,
-            q=dividend_yield,
-        )
-
         greeks = self.greeks_calc.calculate_greeks(
             current_price,
             strike,
@@ -315,7 +310,8 @@ class PortfolioRiskAnalyzer:
         self.positions.append(position)
 
     def calculate_portfolio_value(self) -> float:
-        """Calculate current portfolio value"""
+        """Mark-to-model value: shares x price plus contracts x multiplier x
+        Black-Scholes-Merton option price."""
         total_value = 0.0
 
         for position in self.positions:
@@ -332,7 +328,7 @@ class PortfolioRiskAnalyzer:
                     position.option_type,
                     q=position.dividend_yield or 0.0,
                 )
-                position_value = position.quantity * option_price * 100  # Contract multiplier
+                position_value = position.quantity * option_price * self.contract_multiplier
             else:
                 position_value = 0.0
 
@@ -496,69 +492,77 @@ class PortfolioRiskAnalyzer:
         return value_at_risk(pnl, confidence_level), expected_shortfall(pnl, confidence_level)
 
     def scenario_analysis(
-        self, scenarios: dict[str, dict[str, float]]
+        self, scenarios: dict[str, dict[str, float]], method: str = "full"
     ) -> dict[str, ScenarioResult]:
         """
-        Perform scenario analysis on portfolio
+        P&L for instantaneous spot moves.
 
         Parameters:
         -----------
-        scenarios : Dict[str, Dict[str, float]]
-            Dictionary of scenarios: {scenario_name: {symbol: % change}}
+        scenarios : dict
+            {scenario name: {symbol: relative spot change}}, e.g.
+            {"down 10%": {"SPX": -0.10}}. Unlisted symbols do not move.
+        method : str
+            'full' (default) reprices every option with Black-Scholes-Merton
+            at the shocked spot, same volatility and expiry. 'delta_gamma'
+            uses delta * dS + gamma * dS^2 / 2, which is inaccurate for large
+            moves.
 
         Returns:
         --------
-        Dict[str, ScenarioResult]
-            Results for each scenario
+        dict
+            scenario name -> :class:`ScenarioResult`.
         """
-        current_portfolio_value = self.calculate_portfolio_value()
+        from ..core.pricing_engine import black_scholes_price
+
+        if method not in ("full", "delta_gamma"):
+            raise ValueError("method must be 'full' or 'delta_gamma'")
+        current_value = self.calculate_portfolio_value()
         results = {}
-
-        for scenario_name, spot_changes in scenarios.items():
-            total_pnl = 0.0
-            individual_pnl = {}
-
-            for i, position in enumerate(self.positions):
-                symbol = position.symbol
-                spot_change = spot_changes.get(symbol, 0.0)  # Default to 0% change
-
-                if position.position_type == "stock":
-                    # Simple linear P&L for stocks
-                    pnl = position.quantity * position.current_price * spot_change
-
-                elif position.position_type == "option":
-                    # Calculate option P&L using Greeks approximation
-                    spot_dollar_change = position.current_price * spot_change
-
-                    # First-order (delta) P&L
-                    delta_pnl = position.quantity * 100 * (position.delta or 0) * spot_dollar_change
-
-                    # Second-order (gamma) P&L
-                    gamma_pnl = (
-                        0.5
-                        * position.quantity
-                        * 100
-                        * (position.gamma or 0)
-                        * spot_dollar_change**2
-                    )
-
-                    pnl = delta_pnl + gamma_pnl
+        for name, changes in scenarios.items():
+            total = 0.0
+            individual = {}
+            for i, p in enumerate(self.positions):
+                move = changes.get(p.symbol, 0.0)
+                dS = p.current_price * move
+                if p.position_type == "stock":
+                    pnl = p.quantity * dS
+                elif p.position_type == "option":
+                    units = p.quantity * self.contract_multiplier
+                    if method == "full":
+                        q = p.dividend_yield or 0.0
+                        v0 = black_scholes_price(
+                            p.current_price,
+                            p.strike,
+                            p.expiry,
+                            p.risk_free_rate,
+                            p.volatility,
+                            p.option_type,
+                            q,
+                        )
+                        v1 = black_scholes_price(
+                            p.current_price + dS,
+                            p.strike,
+                            p.expiry,
+                            p.risk_free_rate,
+                            p.volatility,
+                            p.option_type,
+                            q,
+                        )
+                        pnl = units * (v1 - v0)
+                    else:
+                        pnl = units * ((p.delta or 0.0) * dS + 0.5 * (p.gamma or 0.0) * dS**2)
                 else:
                     pnl = 0.0
-
-                individual_pnl[f"{position.position_type}_{symbol}_{i}"] = pnl
-                total_pnl += pnl
-
-            new_portfolio_value = current_portfolio_value + total_pnl
-
-            results[scenario_name] = ScenarioResult(
-                scenario_name=scenario_name,
-                spot_changes=spot_changes,
-                portfolio_pnl=total_pnl,
-                new_portfolio_value=new_portfolio_value,
-                individual_pnl=individual_pnl,
+                individual[f"{p.position_type}_{p.symbol}_{i}"] = float(pnl)
+                total += float(pnl)
+            results[name] = ScenarioResult(
+                scenario_name=name,
+                spot_changes=changes,
+                portfolio_pnl=total,
+                new_portfolio_value=current_value + total,
+                individual_pnl=individual,
             )
-
         return results
 
     def calculate_hedge_ratio(self, hedge_symbol: str) -> dict[str, float | str]:
@@ -629,117 +633,12 @@ class PortfolioRiskAnalyzer:
 
 # Convenience functions
 def create_sample_portfolio() -> PortfolioRiskAnalyzer:
-    """Create sample portfolio for testing"""
+    """Small illustrative book on two hypothetical underlyings, ASSET_A and
+    ASSET_B (made-up prices and volatilities), used in examples and tests."""
     portfolio = PortfolioRiskAnalyzer(risk_free_rate=0.05)
-
-    # Add some stock positions
-    portfolio.add_stock_position("AAPL", 100, 150.0, 0.25)
-    portfolio.add_stock_position("MSFT", -50, 300.0, 0.22)  # Short position
-
-    # Add some option positions
-    portfolio.add_option_position("AAPL", 10, 150.0, 155.0, 0.25, "call", 0.25)  # Long calls
-    portfolio.add_option_position("AAPL", -5, 150.0, 145.0, 0.25, "put", 0.25)  # Short puts
-    portfolio.add_option_position("MSFT", 3, 300.0, 295.0, 0.33, "call", 0.22)  # Long calls
-
+    portfolio.add_stock_position("ASSET_A", 100, 150.0, 0.25)
+    portfolio.add_stock_position("ASSET_B", -50, 300.0, 0.22)
+    portfolio.add_option_position("ASSET_A", 10, 150.0, 155.0, 0.25, "call", 0.25)
+    portfolio.add_option_position("ASSET_A", -5, 150.0, 145.0, 0.25, "put", 0.25)
+    portfolio.add_option_position("ASSET_B", 3, 300.0, 295.0, 0.33, "call", 0.22)
     return portfolio
-
-
-# Example usage and testing
-if __name__ == "__main__":
-    print("DERIVFLOW-FINANCE: Portfolio Risk Analytics")
-    print("=" * 70)
-
-    # Create sample portfolio
-    print("Creating Sample Portfolio...")
-    portfolio = create_sample_portfolio()
-
-    print(f"Portfolio Positions: {len(portfolio.positions)}")
-
-    # Calculate portfolio metrics
-    print("\nPORTFOLIO VALUATION:")
-    print("-" * 40)
-
-    portfolio_value = portfolio.calculate_portfolio_value()
-    print(f"Total Portfolio Value: ${portfolio_value:,.2f}")
-
-    # Greeks analysis
-    print("\nPORTFOLIO GREEKS:")
-    print("-" * 30)
-
-    greeks = portfolio.calculate_portfolio_greeks()
-    print(f"Portfolio Delta:  {greeks['delta']:>10.2f}")
-    print(f"Portfolio Gamma:  {greeks['gamma']:>10.4f}")
-    print(f"Portfolio Theta:  {greeks['theta']:>10.2f}")
-    print(f"Portfolio Vega:   {greeks['vega']:>10.2f}")
-    print(f"Portfolio Rho:    {greeks['rho']:>10.2f}")
-
-    # VaR analysis
-    print("\n RISK METRICS:")
-    print("-" * 25)
-
-    try:
-        var_95, es_95 = portfolio.calculate_var_parametric(0.95)
-        var_99, es_99 = portfolio.calculate_var_parametric(0.99)
-
-        print(f"95% VaR (1-day):     ${var_95:>10,.2f}")
-        print(f"95% Expected Shortfall: ${es_95:>7,.2f}")
-        print(f"99% VaR (1-day):     ${var_99:>10,.2f}")
-        print(f"99% Expected Shortfall: ${es_99:>7,.2f}")
-    except Exception:
-        print("VaR calculation: Limited (simplified model)")
-
-    # Scenario analysis
-    print("\nSCENARIO ANALYSIS:")
-    print("-" * 35)
-
-    scenarios = {
-        "Market Crash": {"AAPL": -0.20, "MSFT": -0.15},
-        "Tech Rally": {"AAPL": 0.15, "MSFT": 0.12},
-        "Mixed Market": {"AAPL": 0.05, "MSFT": -0.03},
-    }
-
-    scenario_results = portfolio.scenario_analysis(scenarios)
-
-    print(f"{'Scenario':<15} {'P&L':<12} {'New Value':<12}")
-    print("-" * 45)
-    for name, result in scenario_results.items():
-        print(f"{name:<15} ${result.portfolio_pnl:>10,.0f} ${result.new_portfolio_value:>10,.0f}")
-
-    # Hedging analysis
-    print("\n HEDGING RECOMMENDATIONS:")
-    print("-" * 40)
-
-    try:
-        hedge_info = portfolio.calculate_hedge_ratio("AAPL")
-        print(f"Current Portfolio Delta: {hedge_info['current_portfolio_delta']:>8.2f}")
-        print(f"Hedge Quantity (AAPL):  {hedge_info['hedge_quantity']:>8.0f} shares")
-        print(f"Hedge Notional:         ${hedge_info['hedge_notional']:>8,.0f}")
-        print(f"Hedged Portfolio Delta: {hedge_info['hedged_portfolio_delta']:>8.2f}")
-    except Exception as e:
-        print(f"Hedging analysis: {e!s}")
-
-    # Generate comprehensive report
-    print("\nCOMPREHENSIVE RISK REPORT:")
-    print("-" * 45)
-
-    risk_report = portfolio.generate_risk_report()
-
-    print(f"Portfolio Value:    ${risk_report.portfolio_value:>12,.2f}")
-    print(f"Portfolio Delta:    {risk_report.portfolio_delta:>12.2f}")
-    print(f"Portfolio Gamma:    {risk_report.portfolio_gamma:>12.4f}")
-    print(f"Portfolio Vega:     {risk_report.portfolio_vega:>12.2f}")
-
-    if risk_report.var_95:
-        print(f"95% VaR:           ${risk_report.var_95:>12,.2f}")
-
-    print("\nPORTFOLIO RISK ANALYTICS STATUS:")
-    print("-" * 50)
-    print("Multi-asset portfolio construction")
-    print("Portfolio Greeks aggregation")
-    print("VaR calculation (parametric & Monte Carlo)")
-    print("Scenario analysis & stress testing")
-    print("Hedging recommendations")
-    print("Comprehensive risk reporting")
-
-    print("\nPORTFOLIO RISK MODULE COMPLETE!")
-    print("Professional-grade risk management ready!")

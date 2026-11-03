@@ -221,3 +221,16 @@ def test_svi_warns_about_expiries_with_too_few_quotes():
     with pytest.warns(UserWarning, match="fewer than 5"):
         surface.build_surface()
     assert 2.0 not in surface.smile_params
+
+
+def test_get_smile_default_range_uses_the_nearest_quoted_expiry():
+    from derivflow.volatility.surface import VolatilitySurface
+
+    surface = VolatilitySurface(method="linear")
+    for K in (95.0, 100.0, 105.0):
+        surface.add_volatility_point(K, 0.02, 0.2)
+    for K in (50.0, 100.0, 150.0):
+        surface.add_volatility_point(K, 0.1, 0.2)
+    smile = surface.get_smile(0.02, num_points=5)
+    assert smile["strikes"][0] == pytest.approx(0.8 * 95.0)
+    assert smile["strikes"][-1] == pytest.approx(1.2 * 105.0)

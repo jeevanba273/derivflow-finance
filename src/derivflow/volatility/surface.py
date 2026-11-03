@@ -388,7 +388,8 @@ class VolatilitySurface:
         expiry : float
             Time to expiry
         strike_range : tuple, optional
-            (min_strike, max_strike) - if None, auto-detect from data
+            (min_strike, max_strike); by default 0.8 x the lowest to 1.2 x the
+            highest strike quoted at the nearest expiry.
         num_points : int
             Number of points in smile
 
@@ -402,12 +403,11 @@ class VolatilitySurface:
 
         # Determine strike range
         if strike_range is None:
-            strikes_data = [
-                point.strike for point in self.vol_data if abs(point.expiry - expiry) < 0.1
-            ]
-            if not strikes_data:
-                raise ValueError(f"No data found near expiry {expiry}")
-
+            # Strike span of the quoted expiry nearest to the requested one.
+            if not self.vol_data:
+                raise ValueError("No volatility data available")
+            nearest = min({p.expiry for p in self.vol_data}, key=lambda t: abs(t - expiry))
+            strikes_data = [p.strike for p in self.vol_data if p.expiry == nearest]
             min_strike = min(strikes_data) * 0.8
             max_strike = max(strikes_data) * 1.2
         else:

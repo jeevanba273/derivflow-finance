@@ -16,7 +16,6 @@ from typing import Any
 import numpy as np
 import scipy.stats as stats
 from scipy import integrate
-from scipy.optimize import minimize
 from scipy.special import ndtri
 
 
@@ -276,109 +275,82 @@ class HestonModel:
             num_simulations=num_sims,
         )
 
-    def calibrate_to_market(self, market_data: list[dict], S: float, r: float) -> dict:
+    def calibrate_to_market(
+        self,
+        market_data: list[dict],
+        S: float,
+        r: float,
+        q: float = 0.0,
+        initial_guess: tuple[float, float, float, float, float] | None = None,
+    ) -> dict[str, Any]:
         """
-        Calibrate Heston parameters to market option prices
+        Fit (v0, kappa, theta, sigma, rho) to European option prices.
+
+        Minimises the sum of squared price errors, model minus market, with
+        ``scipy.optimize.least_squares`` (trust-region reflective, bounds
+        v0, theta in [1e-4, 2], kappa in [1e-3, 20], sigma in [1e-3, 5],
+        rho in [-0.999, 0.999]). Model prices come from :meth:`analytic_price`,
+        so the objective is deterministic. On return the fitted parameters are
+        stored on the model.
 
         Parameters:
         -----------
-        market_data : List[Dict]
-            List of market observations with keys: 'K', 'T', 'price', 'option_type'
-        S : float
-            Current spot price
-        r : float
-            Risk-free rate
+        market_data : list of dict
+            One dict per quote with keys 'K', 'T' (years), 'price' and
+            optionally 'option_type' ('call' by default).
+        S, r, q : float
+            Spot, risk-free rate and dividend yield (continuously compounded).
+        initial_guess : tuple, optional
+            Starting (v0, kappa, theta, sigma, rho); default
+            (0.04, 2.0, 0.04, 0.3, -0.7).
 
         Returns:
         --------
-        Dict
-            Calibration results and fitted parameters
+        dict
+            'success', 'parameters', 'rmse' and 'max_abs_error' (in price
+            units), 'num_quotes', 'nfev' and the optimiser 'message'.
         """
+        from scipy.optimize import least_squares
 
-        def objective_function(params):
-            v0, kappa, theta, sigma, rho = params
-
-            # Parameter constraints
-            if not (
-                0.001 < v0 < 1.0
-                and 0.001 < kappa < 10.0
-                and 0.001 < theta < 1.0
-                and 0.001 < sigma < 2.0
-                and -0.99 < rho < 0.99
-            ):
-                return 1e6
-
-            # Set parameters
-            try:
-                self.set_parameters(v0, kappa, theta, sigma, rho)
-            except:
-                return 1e6
-
-            total_error = 0
-            for data_point in market_data:
-                try:
-                    model_price = self.monte_carlo_price(
-                        S,
-                        data_point["K"],
-                        data_point["T"],
-                        r,
-                        data_point.get("option_type", "call"),
-                        num_sims=10000,
-                    ).price
-
-                    market_price = data_point["price"]
-                    error = (model_price - market_price) ** 2 / market_price**2
-                    total_error += error
-
-                except:
-                    total_error += 1e3
-
-            return total_error
-
-        # Initial parameter guess
-        initial_guess = [0.04, 2.0, 0.04, 0.3, -0.7]  # Typical market values
-
-        # Parameter bounds
-        bounds = [
-            (0.001, 1.0),  # v0
-            (0.001, 10.0),  # kappa
-            (0.001, 1.0),  # theta
-            (0.001, 2.0),  # sigma
-            (-0.99, 0.99),  # rho
+        if not market_data:
+            raise ValueError("market_data is empty")
+        quotes = [
+            (float(d["K"]), float(d["T"]), float(d["price"]), d.get("option_type", "call"))
+            for d in market_data
         ]
+        x0 = np.array(initial_guess or (0.04, 2.0, 0.04, 0.3, -0.7), dtype=float)
+        lower = np.array([1e-4, 1e-3, 1e-4, 1e-3, -0.999])
+        upper = np.array([2.0, 20.0, 2.0, 5.0, 0.999])
+        x0 = np.clip(x0, lower, upper)
 
-        # Optimize
-        try:
-            result = minimize(
-                objective_function,
-                initial_guess,
-                method="L-BFGS-B",
-                bounds=bounds,
-                options={"maxiter": 100},
-            )
+        def residuals(x: np.ndarray) -> np.ndarray:
+            params = HestonParameters(*x)
+            out = np.empty(len(quotes))
+            for n, (K, T, price, ot) in enumerate(quotes):
+                call = heston_call_price(S, K, T, r, q, params)
+                model = call if ot == "call" else call - S * np.exp(-q * T) + K * np.exp(-r * T)
+                out[n] = model - price
+            return out
 
-            if result.success:
-                v0, kappa, theta, sigma, rho = result.x
-                self.set_parameters(v0, kappa, theta, sigma, rho)
-                self.calibrated = True
-
-                return {
-                    "success": True,
-                    "parameters": {
-                        "v0": v0,
-                        "kappa": kappa,
-                        "theta": theta,
-                        "sigma": sigma,
-                        "rho": rho,
-                    },
-                    "objective_value": result.fun,
-                    "message": "Calibration successful",
-                }
-            else:
-                return {"success": False, "message": f"Optimization failed: {result.message}"}
-
-        except Exception as e:
-            return {"success": False, "message": f"Calibration error: {e!s}"}
+        fit = least_squares(
+            residuals, x0, bounds=(lower, upper), method="trf", x_scale="jac",
+            xtol=1e-12, ftol=1e-12, gtol=1e-12, max_nfev=2000,
+        )
+        errors = residuals(fit.x)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)  # Feller warning is not an error here
+            self.set_parameters(*fit.x)
+        self.calibrated = bool(fit.success)
+        names = ("v0", "kappa", "theta", "sigma", "rho")
+        return {
+            "success": bool(fit.success),
+            "parameters": {k: float(v) for k, v in zip(names, fit.x, strict=True)},
+            "rmse": float(np.sqrt(np.mean(errors**2))),
+            "max_abs_error": float(np.max(np.abs(errors))),
+            "num_quotes": len(quotes),
+            "nfev": int(fit.nfev),
+            "message": str(fit.message),
+        }
 
     def price_option(
         self,

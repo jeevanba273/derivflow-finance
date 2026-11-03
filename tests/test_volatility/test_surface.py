@@ -70,3 +70,41 @@ def test_svi_interpolates_total_variance_between_expiries():
     w2 = _svi_total_variance(np.log(K / 100.0), *params[1.0])
     w = w1 + (w2 - w1) * (T - 0.25) / (1.0 - 0.25)
     assert surface.interpolate(K, T) == pytest.approx(np.sqrt(w / T), abs=1e-6)
+
+
+@pytest.mark.parametrize("method", ["rbf", "linear"])
+def test_interpolating_methods_reproduce_the_input_points(method):
+    surface = create_sample_surface()
+    surface.build_surface(method=method)
+    for p in surface.vol_data:
+        assert surface.interpolate(p.strike, p.expiry) == pytest.approx(p.volatility, abs=1e-8)
+
+
+def test_linear_interpolation_between_two_strikes():
+    from derivflow.volatility.surface import VolatilitySurface
+
+    surface = VolatilitySurface(method="linear")
+    for K, v in ((90, 0.30), (110, 0.20)):
+        for T in (0.5, 1.0):
+            surface.add_volatility_point(K, T, v)
+    surface.build_surface()
+    # Interpolation is in (ln K, T); at the log-midpoint the weights are equal.
+    import numpy as np
+
+    k_mid = float(np.exp(0.5 * (np.log(90) + np.log(110))))
+    assert surface.interpolate(k_mid, 0.75) == pytest.approx(0.25, abs=1e-12)
+
+
+def test_cubic_spline_name_is_a_deprecated_alias_for_rbf():
+    surface = create_sample_surface()
+    with pytest.warns(DeprecationWarning):
+        surface.build_surface(method="cubic_spline")
+    assert surface.method == "rbf"
+
+
+def test_building_a_surface_prints_nothing(capsys):
+    surface = create_sample_surface()
+    surface.build_surface(method="rbf")
+    surface.build_surface(method="svi")
+    surface.load_market_data([{"strike": 100, "expiry": 2.0, "volatility": 0.2}])
+    assert capsys.readouterr().out == ""

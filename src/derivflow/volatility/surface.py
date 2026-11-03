@@ -6,12 +6,12 @@ Advanced volatility surface construction and interpolation.
 Supports multiple methodologies and market data integration.
 """
 
+import warnings
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 from scipy import interpolate
-from scipy.optimize import minimize
 
 
 @dataclass
@@ -39,23 +39,22 @@ class VolatilitySurfaceResult:
 
 class VolatilitySurface:
     """
-    Professional-grade volatility surface construction and analysis
+    Implied volatility surface built from (strike, expiry, volatility) quotes.
 
-    Implements multiple interpolation methods and smile models:
-    - Cubic spline interpolation
-    - SVI (Stochastic Volatility Inspired) model
-    - SABR (Stochastic Alpha Beta Rho) calibration
-    - Arbitrage-free constraints
+    Methods: 'rbf' (thin-plate radial basis function, exact at the quotes),
+    'linear' (Delaunay piecewise-linear) and 'svi' (raw SVI smile per expiry,
+    total variance interpolated linearly in expiry). No method enforces
+    absence of arbitrage; use :meth:`check_arbitrage` to test a smile.
     """
 
-    def __init__(self, method: str = "cubic_spline", reference_price: float | None = None):
+    def __init__(self, method: str = "rbf", reference_price: float | None = None):
         """
         Initialize volatility surface engine
 
         Parameters:
         -----------
         method : str
-            Interpolation method ('cubic_spline', 'svi', 'sabr', 'rbf')
+            'rbf' (default), 'linear' or 'svi'; see :meth:`build_surface`.
         reference_price : float, optional
             Spot or forward used to define log-moneyness ln(K / reference) for
             SVI fits. If omitted, each expiry uses its median strike.
@@ -65,6 +64,8 @@ class VolatilitySurface:
         self.vol_data = []
         self.surface_fitted = False
         self.interpolator = None
+        self._nearest = None
+        self._scale = (1.0, 1.0)
         self.smile_params = {}
 
     def add_volatility_point(
@@ -111,7 +112,6 @@ class VolatilitySurface:
             for point in data:
                 self.add_volatility_point(**point)
 
-        print(f"Loaded {len(self.vol_data)} volatility points")
 
     def _prepare_data_arrays(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Prepare data for surface fitting"""
@@ -124,21 +124,40 @@ class VolatilitySurface:
 
         return strikes, expiries, volatilities
 
-    def build_surface_cubic_spline(self) -> None:
-        """Build volatility surface using cubic spline interpolation"""
-        strikes, expiries, volatilities = self._prepare_data_arrays()
-
-        # Create 2D interpolator
-        points = np.column_stack((strikes, expiries))
-        self.interpolator = interpolate.LinearNDInterpolator(points, volatilities)
-
-        # Also create RBF interpolator for smoother results
-        self.rbf_interpolator = interpolate.Rbf(
-            strikes, expiries, volatilities, function="thin_plate", smooth=0.1
+    def _scaled_points(
+        self, strikes: np.ndarray, expiries: np.ndarray
+    ) -> np.ndarray:
+        """Coordinates (ln K, T), each divided by its spread in the data, so that
+        strike and expiry carry comparable weight in the interpolation."""
+        return np.column_stack(
+            (np.log(strikes) / self._scale[0], np.asarray(expiries, dtype=float) / self._scale[1])
         )
 
+    def build_surface_interpolated(self) -> None:
+        """Build the 'linear' or 'rbf' surface on (ln K, T).
+
+        - 'linear': piecewise-linear interpolation on a Delaunay triangulation
+          (``scipy.interpolate.LinearNDInterpolator``); outside the convex hull
+          of the data the nearest quote is used.
+        - 'rbf': thin-plate-spline radial basis function interpolation with no
+          smoothing (``scipy.interpolate.RBFInterpolator``), so the surface
+          passes through every quote.
+        """
+        strikes, expiries, volatilities = self._prepare_data_arrays()
+        log_k = np.log(strikes)
+        self._scale = (
+            float(np.ptp(log_k)) or 1.0,
+            float(np.ptp(expiries)) or 1.0,
+        )
+        points = self._scaled_points(strikes, expiries)
+        if self.method == "linear":
+            self.interpolator = interpolate.LinearNDInterpolator(points, volatilities)
+            self._nearest = interpolate.NearestNDInterpolator(points, volatilities)
+        else:
+            self.interpolator = interpolate.RBFInterpolator(
+                points, volatilities, kernel="thin_plate_spline", smoothing=0.0
+            )
         self.surface_fitted = True
-        print("Cubic spline volatility surface fitted")
 
     @staticmethod
     def _svi_total_variance(
@@ -243,22 +262,30 @@ class VolatilitySurface:
         Parameters:
         -----------
         method : str, optional
-            Override default method ('cubic_spline', 'svi', 'rbf')
+            Override the constructor's method: 'rbf', 'linear' or 'svi'.
+            'cubic_spline' is a deprecated alias for 'rbf' (it never was a
+            cubic spline).
         """
         if method:
             self.method = method
+        if self.method == "cubic_spline":
+            warnings.warn(
+                "method='cubic_spline' is deprecated; it is a radial basis function "
+                "surface, use method='rbf'",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.method = "rbf"
 
         if not self.vol_data:
             raise ValueError("No volatility data to fit surface")
 
-        if self.method == "cubic_spline":
-            self.build_surface_cubic_spline()
+        if self.method in ("rbf", "linear"):
+            self.build_surface_interpolated()
         elif self.method == "svi":
             self.build_surface_svi()
-        elif self.method == "rbf":
-            self.build_surface_cubic_spline()  # RBF included in cubic spline method
         else:
-            raise ValueError(f"Unknown method: {self.method}")
+            raise ValueError(f"Unknown method: {self.method!r} (use 'rbf', 'linear' or 'svi')")
 
     def interpolate(self, strike: float, expiry: float) -> float:
         """
@@ -282,19 +309,17 @@ class VolatilitySurface:
         if self.method == "svi":
             return self._interpolate_svi(strike, expiry)
 
-        elif self.method in ["cubic_spline", "rbf"]:
-            if self.rbf_interpolator:
-                vol = self.rbf_interpolator(strike, expiry)
-                return max(float(vol), 0.01)  # Ensure minimum volatility
-            else:
-                vol = self.interpolator(strike, expiry)
-                if np.isnan(vol):
-                    # Fallback to nearest neighbor
-                    strikes, expiries, volatilities = self._prepare_data_arrays()
-                    distances = (strikes - strike) ** 2 + (expiries - expiry) ** 2
-                    nearest_idx = np.argmin(distances)
-                    return volatilities[nearest_idx]
-                return max(float(vol), 0.01)
+        point = self._scaled_points(np.array([strike], dtype=float), np.array([expiry]))
+        vol = float(np.asarray(self.interpolator(point)).ravel()[0])
+        if self.method == "linear" and np.isnan(vol):
+            vol = float(np.asarray(self._nearest(point)).ravel()[0])
+        if not vol > 0:
+            raise ValueError(
+                f"Interpolated volatility {vol:.6g} at K={strike}, T={expiry} is not positive "
+                "(RBF extrapolation far from the data); query inside the data range or use "
+                "method='linear'"
+            )
+        return vol
 
     def get_smile(
         self,
@@ -466,55 +491,3 @@ def create_sample_surface() -> VolatilitySurface:
             surface.add_volatility_point(strike, expiry, vol)
 
     return surface
-
-
-if __name__ == "__main__":
-    # Example usage and testing
-    print("DERIVFLOW-FINANCE: Volatility Surface Engine")
-    print("=" * 65)
-
-    # Create sample surface
-    print("Creating sample volatility surface...")
-    surface = create_sample_surface()
-
-    # Build surface
-    print("\nBuilding surface with cubic spline interpolation...")
-    surface.build_surface(method="cubic_spline")
-
-    # Surface statistics
-    stats = surface.surface_statistics()
-    print("\nSURFACE STATISTICS:")
-    print("-" * 40)
-    print(f"Data Points:      {stats['num_points']}")
-    print(f"Unique Expiries:  {stats['unique_expiries']}")
-    print(f"Unique Strikes:   {stats['unique_strikes']}")
-    print(f"Vol Range:        {stats['min_volatility']:.1%} - {stats['max_volatility']:.1%}")
-    print(f"Mean Vol:         {stats['mean_volatility']:.1%}")
-    print(f"Vol of Vol:       {stats['vol_of_vol']:.1%}")
-
-    # Test interpolation
-    print("\nINTERPOLATION TESTS:")
-    print("-" * 40)
-    test_points = [
-        (100, 0.25, "3M ATM"),
-        (95, 0.25, "3M 95% Put"),
-        (105, 0.25, "3M 105% Call"),
-        (100, 0.5, "6M ATM"),
-    ]
-
-    for strike, expiry, description in test_points:
-        vol = surface.interpolate(strike, expiry)
-        print(f"{description:<15}: {vol:.1%}")
-
-    # Extract smile
-    print("\nVOLATILITY SMILE (3M expiry):")
-    print("-" * 40)
-    smile = surface.get_smile(0.25, strike_range=(85, 115), num_points=7)
-
-    print(f"{'Strike':<8} {'Vol':<8}")
-    print("-" * 16)
-    for i, (k, v) in enumerate(zip(smile["strikes"], smile["volatilities"])):
-        print(f"{k:<8.0f} {v:<8.1%}")
-
-    print("\nVolatility surface analysis complete!")
-    print("Ready for advanced derivatives pricing!")

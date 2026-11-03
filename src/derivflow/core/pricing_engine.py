@@ -1,21 +1,33 @@
 """
-DERIVFLOW-FINANCE: Core Pricing Engine
-=====================================
+European and American option pricing under Black-Scholes-Merton dynamics.
 
-The foundation of all derivatives pricing in the platform.
-Supports multiple pricing methodologies with validation.
+The underlying follows dS = (r - q) S dt + sigma S dW under the risk-neutral
+measure. Conventions used throughout the package:
+
+- T is the time to expiry in years;
+- r (risk-free rate) and q (dividend yield) are continuously compounded
+  annual rates;
+- sigma is the annualised volatility of log returns.
+
+Pricers: :func:`black_scholes_price` (vectorised closed form),
+:class:`BlackScholesAnalytical` (scalar closed form), :class:`BinomialTree`
+(Cox-Ross-Rubinstein, European and American exercise) and
+:class:`MonteCarloEngine` (exact terminal sampling with optional variance
+reduction). :class:`PricingEngine` dispatches to them by name.
 """
+
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any
 
 import numpy as np
+import scipy.stats as stats
 from numpy.typing import ArrayLike
 from scipy.special import ndtr
 
 from .._validation import check_live_inputs, check_market_inputs, check_option_type
-import scipy.stats as stats
 
 
 def black_scholes_price(
@@ -68,20 +80,23 @@ def _validate_market_inputs(S: float, K: float, T: float, sigma: float) -> None:
 
 
 class PricingMethod(ABC):
-    """Abstract base class for all pricing methods"""
+    """Interface of the pricers used by :class:`PricingEngine`."""
 
     @abstractmethod
-    def price(self, **kwargs) -> float:
-        """Price an instrument using this method"""
-        pass
+    def price(self, *args: Any, **kwargs: Any) -> Any:
+        """Price an instrument."""
 
 
 class BlackScholesAnalytical(PricingMethod):
     """
-    Analytical Black-Scholes pricing for European options
+    Black-Scholes-Merton closed form for one European option.
 
-    The foundation formula that started modern derivatives pricing.
-    Provides exact solutions for European calls and puts.
+    C = S e^{-qT} N(d1) - K e^{-rT} N(d2),
+    P = K e^{-rT} N(-d2) - S e^{-qT} N(-d1),
+    d1 = [ln(S/K) + (r - q + sigma^2 / 2) T] / (sigma sqrt(T)), d2 = d1 - sigma sqrt(T)
+
+    (Black and Scholes 1973; Merton 1973 for the dividend yield). See
+    :func:`black_scholes_price` for an array version.
     """
 
     @staticmethod
@@ -105,24 +120,20 @@ class BlackScholesAnalytical(PricingMethod):
         q: float = 0.0,
     ) -> float:
         """
-        Price European option using the (generalized) Black-Scholes-Merton formula
+        Price a European option.
 
         Parameters:
         -----------
-        S : float
-            Current spot price
-        K : float
-            Strike price
+        S, K : float
+            Spot and strike (positive).
         T : float
-            Time to expiry (in years)
-        r : float
-            Risk-free rate
+            Time to expiry in years; T <= 0 returns the intrinsic value.
+        r, q : float
+            Continuously compounded risk-free rate and dividend yield.
         sigma : float
-            Volatility
+            Annualised volatility (positive).
         option_type : str
             'call' or 'put'
-        q : float
-            Continuous dividend yield (default 0.0 reproduces classic Black-Scholes)
 
         Returns:
         --------
@@ -132,11 +143,9 @@ class BlackScholesAnalytical(PricingMethod):
         check_market_inputs(S, K, T, sigma)
         check_option_type(option_type)
         if T <= 0:
-            # Handle expiry
             if option_type.lower() == "call":
-                return max(S - K, 0)
-            else:
-                return max(K - S, 0)
+                return float(max(S - K, 0.0))
+            return float(max(K - S, 0.0))
 
         d1 = self._d1(S, K, T, r, sigma, q)
         d2 = self._d2(S, K, T, r, sigma, q)
@@ -149,7 +158,7 @@ class BlackScholesAnalytical(PricingMethod):
         else:
             raise ValueError("option_type must be 'call' or 'put'")
 
-        return max(price, 0)  # Ensure non-negative price
+        return float(max(price, 0.0))
 
 
 class BinomialTree(PricingMethod):
@@ -396,20 +405,20 @@ class MonteCarloEngine(PricingMethod):
 
 class PricingEngine:
     """
-    Main pricing engine that coordinates multiple pricing methods
+    Dispatch to a pricer by name: 'black_scholes', 'binomial' (100-step CRR
+    tree) or 'monte_carlo' (100,000 draws, unseeded).
 
-    Provides unified interface for all pricing methodologies.
-    Includes model validation and benchmarking capabilities.
+    Deterministic results are cached by their inputs; Monte Carlo results are
+    not, so repeated calls give independent estimates.
     """
 
-    def __init__(self):
-        """Initialize pricing engine with available methods"""
-        self.methods = {
+    def __init__(self) -> None:
+        self.methods: dict[str, PricingMethod] = {
             "black_scholes": BlackScholesAnalytical(),
             "binomial": BinomialTree(),
             "monte_carlo": MonteCarloEngine(),
         }
-        self.results_cache = {}
+        self.results_cache: dict[str, Any] = {}
 
     def price_option(
         self,
@@ -420,34 +429,26 @@ class PricingEngine:
         r: float,
         sigma: float,
         option_type: str = "call",
-        **kwargs,
-    ) -> float | dict:
+        **kwargs: Any,
+    ) -> float | dict[str, Any]:
         """
-        Price option using specified method
+        Price an option with the named method.
 
         Parameters:
         -----------
         method : str
-            Pricing method ('black_scholes', 'binomial', 'monte_carlo')
-        S : float
-            Current spot price
-        K : float
-            Strike price
-        T : float
-            Time to expiry
-        r : float
-            Risk-free rate
-        sigma : float
-            Volatility
-        option_type : str
-            'call' or 'put'
+            'black_scholes', 'binomial' or 'monte_carlo'.
+        S, K, T, r, sigma, option_type
+            As in :meth:`BlackScholesAnalytical.price`.
         **kwargs
-            Additional method-specific parameters
+            Passed to the pricer, e.g. ``q`` (all methods) or ``american``
+            (binomial).
 
         Returns:
         --------
-        Union[float, Dict]
-            Option price (float for analytical methods, Dict for MC)
+        float or dict
+            A price for 'black_scholes' and 'binomial'; the Monte Carlo result
+            dict (price, std_error, confidence_interval, ...) otherwise.
         """
         if method not in self.methods:
             raise ValueError(f"Unknown pricing method: {method}")
@@ -457,7 +458,8 @@ class PricingEngine:
         extra = "_".join(f"{k}={v}" for k, v in sorted(kwargs.items()))
         cache_key = f"{method}_{S}_{K}_{T}_{r}_{sigma}_{option_type}_{extra}"
 
-        if cache_key in self.results_cache:
+        cacheable = method != "monte_carlo"
+        if cacheable and cache_key in self.results_cache:
             return self.results_cache[cache_key]
 
         # Price using selected method
@@ -468,13 +470,11 @@ class PricingEngine:
                 S=S, K=K, T=T, r=r, sigma=sigma, option_type=option_type, **kwargs
             )
 
-            # Cache result
-            self.results_cache[cache_key] = result
-
+            if cacheable:
+                self.results_cache[cache_key] = result
             return result
-
         except Exception as e:
-            raise ValueError(f"Pricing failed with method {method}: {e!s}")
+            raise ValueError(f"Pricing failed with method {method}: {e!s}") from e
 
     def compare_methods(
         self,
@@ -485,31 +485,15 @@ class PricingEngine:
         sigma: float,
         option_type: str = "call",
         methods: list[str] | None = None,
-    ) -> dict[str, dict]:
+    ) -> dict[str, dict[str, Any]]:
         """
-        Compare prices across multiple methods
-
-        Parameters:
-        -----------
-        S : float
-            Current spot price
-        K : float
-            Strike price
-        T : float
-            Time to expiry
-        r : float
-            Risk-free rate
-        sigma : float
-            Volatility
-        option_type : str
-            'call' or 'put'
-        methods : List[str], optional
-            Methods to compare (default: all available)
+        Price the same European option with several methods.
 
         Returns:
         --------
-        Dict[str, Dict]
-            Comparison results across methods
+        dict
+            method name -> {'price': ...} (plus the Monte Carlo statistics), or
+            {'error': message} if that method failed.
         """
         if methods is None:
             methods = list(self.methods.keys())
@@ -533,37 +517,29 @@ class PricingEngine:
         return results
 
     def validate_put_call_parity(
-        self, S: float, K: float, T: float, r: float, sigma: float, method: str = "black_scholes"
-    ) -> dict[str, float]:
+        self,
+        S: float,
+        K: float,
+        T: float,
+        r: float,
+        sigma: float,
+        method: str = "black_scholes",
+        q: float = 0.0,
+    ) -> dict[str, Any]:
         """
-        Validate put-call parity: C - P = S - K*e^(-rT)
-
-        Parameters:
-        -----------
-        S : float
-            Current spot price
-        K : float
-            Strike price
-        T : float
-            Time to expiry
-        r : float
-            Risk-free rate
-        sigma : float
-            Volatility
-        method : str
-            Pricing method to validate
+        Check put-call parity C - P = S e^{-qT} - K e^{-rT} for a method.
 
         Returns:
         --------
-        Dict[str, float]
-            Validation results with error metrics
+        dict
+            call and put prices, both sides of the identity, absolute and
+            relative error, and 'parity_satisfied' (absolute error < 1e-6).
         """
-        # Price call and put
         call_price = self.price_option(
-            method=method, S=S, K=K, T=T, r=r, sigma=sigma, option_type="call"
+            method=method, S=S, K=K, T=T, r=r, sigma=sigma, option_type="call", q=q
         )
         put_price = self.price_option(
-            method=method, S=S, K=K, T=T, r=r, sigma=sigma, option_type="put"
+            method=method, S=S, K=K, T=T, r=r, sigma=sigma, option_type="put", q=q
         )
 
         # Extract prices if Monte Carlo results
@@ -574,7 +550,7 @@ class PricingEngine:
 
         # Calculate put-call parity components
         left_side = call_price - put_price
-        right_side = S - K * np.exp(-r * T)
+        right_side = S * np.exp(-q * T) - K * np.exp(-r * T)
         error = abs(left_side - right_side)
         relative_error = error / abs(right_side) if right_side != 0 else float("inf")
 
@@ -589,7 +565,6 @@ class PricingEngine:
         }
 
 
-# Module-level convenience functions
 def price_european_option(
     S: float,
     K: float,
@@ -601,82 +576,30 @@ def price_european_option(
     q: float = 0.0,
 ) -> float:
     """
-    Convenience function to price European option
+    Price a European option and return the price as a float.
 
     Parameters:
     -----------
-    S : float
-        Current spot price
-    K : float
-        Strike price
+    S, K : float
+        Spot and strike.
     T : float
-        Time to expiry
-    r : float
-        Risk-free rate
+        Time to expiry in years.
+    r, q : float
+        Continuously compounded risk-free rate and dividend yield.
     sigma : float
-        Volatility
+        Annualised volatility.
     option_type : str
         'call' or 'put'
     method : str
-        Pricing method
-    q : float
-        Continuous dividend yield. Only supported by the analytical 'black_scholes'
-        method; the binomial and monte_carlo engines do not yet model dividends, so
-        a non-zero q with those methods raises a clear error.
+        'black_scholes' (closed form), 'binomial' (100-step tree) or
+        'monte_carlo' (100,000 draws; the estimate is random).
 
     Returns:
     --------
     float
         Option price
     """
-    engine = PricingEngine()
-    kwargs = {}
-    if method == "black_scholes":
-        kwargs["q"] = q
-    elif q != 0.0:
-        raise ValueError(
-            f"Dividend yield q is only supported by method='black_scholes', not '{method}'"
-        )
-    result = engine.price_option(method, S, K, T, r, sigma, option_type, **kwargs)
-
+    result = PricingEngine().price_option(method, S, K, T, r, sigma, option_type, q=q)
     if isinstance(result, dict):
-        return result["price"]
-    return result
-
-
-if __name__ == "__main__":
-    # Example usage and testing
-    print("DERIVFLOW-FINANCE Core Pricing Engine")
-    print("=" * 50)
-
-    # Initialize engine
-    engine = PricingEngine()
-
-    # Test parameters
-    S, K, T, r, sigma = 100, 105, 0.25, 0.05, 0.2
-
-    print(f"Pricing CALL option: S=${S}, K=${K}, T={T}, r={r:.1%}, σ={sigma:.1%}")
-    print("-" * 50)
-
-    # Compare all methods
-    comparison = engine.compare_methods(S, K, T, r, sigma, "call")
-
-    for method, result in comparison.items():
-        if "error" in result:
-            print(f"{method:15s}: ERROR - {result['error']}")
-        else:
-            price = result.get("price", result)
-            if isinstance(price, float):
-                print(f"{method:15s}: ${price:.4f}")
-            else:
-                print(f"{method:15s}: {price}")
-
-    print("\n" + "-" * 50)
-
-    # Validate put-call parity
-    parity_check = engine.validate_put_call_parity(S, K, T, r, sigma)
-    print("Put-Call Parity Validation:")
-    print(f"   Call Price: ${parity_check['call_price']:.6f}")
-    print(f"   Put Price:  ${parity_check['put_price']:.6f}")
-    print(f"   Error:      {parity_check['absolute_error']:.8f}")
-    print(f"   Valid:      {'YES' if parity_check['parity_satisfied'] else 'NO'}")
+        return float(result["price"])
+    return float(result)

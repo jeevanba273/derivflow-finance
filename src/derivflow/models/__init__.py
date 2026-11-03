@@ -1,9 +1,4 @@
-"""
-DERIVFLOW-FINANCE: Advanced Stochastic Models
-============================================
-
-Advanced stochastic volatility and jump-diffusion models.
-"""
+"""Heston stochastic volatility model."""
 
 from .heston import HestonModel, HestonParameters, HestonResult
 

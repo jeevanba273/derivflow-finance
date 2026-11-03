@@ -1,9 +1,4 @@
-"""
-DERIVFLOW-FINANCE: Portfolio Risk Analytics Module
-=================================================
-
-Professional portfolio risk management and analytics.
-"""
+"""Portfolio Greeks, VaR and expected shortfall."""
 
 from .portfolio_risk import (
     PortfolioRiskAnalyzer,

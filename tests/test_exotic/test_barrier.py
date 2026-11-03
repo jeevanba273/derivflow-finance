@@ -140,3 +140,11 @@ def test_monte_carlo_survival_probability_is_the_same_quantity_for_in_and_out():
         100, 100, 90, 1.0, 0.05, 0.2, "down_and_in", "call", num_sims=20_000, num_steps=50
     )
     assert knock_in.probability_survival == pytest.approx(out.probability_survival, abs=1e-12)
+
+
+def test_price_barrier_option_convenience_function():
+    from derivflow.exotic import price_barrier_option
+
+    assert price_barrier_option(100, 100, 90, 1.0, 0.05, 0.2, "down_and_out") == pytest.approx(
+        _price("down_and_out", 90), abs=1e-14
+    )

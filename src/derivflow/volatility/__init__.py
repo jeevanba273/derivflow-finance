@@ -1,9 +1,4 @@
-"""
-DERIVFLOW-FINANCE: Volatility Surface Engine
-===========================================
-
-Advanced volatility surface construction and interpolation.
-"""
+"""Implied volatility solver and volatility surfaces."""
 
 from .surface import (
     VolatilityPoint,

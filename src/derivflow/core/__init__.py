@@ -1,10 +1,4 @@
-"""
-DERIVFLOW-FINANCE: Core Pricing Engine
-=====================================
-
-The foundation of all derivatives pricing in the platform.
-Supports multiple pricing methodologies with validation.
-"""
+"""Black-Scholes-Merton closed form, binomial tree and Monte Carlo pricers."""
 
 from .pricing_engine import (
     BinomialTree,

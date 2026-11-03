@@ -148,3 +148,27 @@ def test_calibration_recovers_parameters_from_model_prices():
     for name, value in true.items():
         assert res["parameters"][name] == pytest.approx(value, rel=1e-3), name
     assert fitted.params.kappa == pytest.approx(true["kappa"], rel=1e-3)
+
+
+@pytest.mark.parametrize("label", ["Call", "CALL", "call"])
+def test_calibration_reads_option_type_case_insensitively(label):
+    model = HestonModel()
+    model.set_parameters(0.05, 1.8, 0.07, 0.5, -0.6)
+    quotes = [
+        {
+            "K": K,
+            "T": T,
+            "price": model.analytic_price(100, K, T, 0.03, "call"),
+            "option_type": label,
+        }
+        for T in (0.5, 1.0)
+        for K in (90, 100, 110)
+    ]
+    res = HestonModel().calibrate_to_market(quotes, S=100, r=0.03)
+    assert res["rmse"] < 1e-6
+
+
+def test_calibration_rejects_unknown_option_type():
+    quotes = [{"K": 100, "T": 1.0, "price": 10.0, "option_type": "straddle"}]
+    with pytest.raises(ValueError, match="option_type"):
+        HestonModel().calibrate_to_market(quotes, S=100, r=0.03)

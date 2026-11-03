@@ -323,7 +323,12 @@ class HestonModel:
         if not market_data:
             raise ValueError("market_data is empty")
         quotes = [
-            (float(d["K"]), float(d["T"]), float(d["price"]), d.get("option_type", "call"))
+            (
+                float(d["K"]),
+                float(d["T"]),
+                float(d["price"]),
+                check_option_type(d.get("option_type", "call")),
+            )
             for d in market_data
         ]
         x0 = np.array(initial_guess or (0.04, 2.0, 0.04, 0.3, -0.7), dtype=float)

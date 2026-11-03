@@ -143,3 +143,15 @@ def test_module_imports_and_constructs_without_yfinance():
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert "IMPORT_OK" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("now", "expiry", "hours"),
+    [
+        (datetime(2026, 10, 30, 9, 30), "2026-11-02", 79.5),  # DST ends on 1 November
+        (datetime(2026, 11, 1, 0, 30), "2026-11-01", 16.5),
+        (datetime(2026, 3, 7, 16, 0), "2026-03-09", 47.0),  # DST starts on 8 March
+    ],
+)
+def test_year_fraction_counts_elapsed_time_across_daylight_saving(now, expiry, hours):
+    assert year_fraction_to_expiry(expiry, now) * 365 * 24 == pytest.approx(hours, abs=1e-9)

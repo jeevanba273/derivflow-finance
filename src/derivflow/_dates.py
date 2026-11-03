@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, tzinfo
+from datetime import date, datetime, time, timezone, tzinfo
 from functools import lru_cache
 
 EXPIRY_CLOSE = time(16, 0)  # US equity options stop trading at 16:00 New York time
@@ -19,7 +19,7 @@ def new_york() -> tzinfo:
 
 
 def year_fraction_to_expiry(expiry: str | date, now: datetime | None = None) -> float:
-    """Years from ``now`` to 16:00 New York time on the expiry date, ACT/365.
+    """Elapsed years from ``now`` to 16:00 New York time on the expiry date, ACT/365.
 
     ``expiry`` is a ``datetime.date`` or a 'YYYY-MM-DD' string. ``now``
     defaults to the current time; a naive ``now`` is taken as New York time.
@@ -35,5 +35,7 @@ def year_fraction_to_expiry(expiry: str | date, now: datetime | None = None) -> 
     elif now.tzinfo is None:
         now = now.replace(tzinfo=tz)
     close = datetime.combine(expiry, EXPIRY_CLOSE, tzinfo=tz)
-    seconds = (close - now).total_seconds()
+    # Subtract in UTC: datetimes sharing one ZoneInfo subtract as wall-clock
+    # times, which is an hour off across a daylight-saving change.
+    seconds = (close.astimezone(timezone.utc) - now.astimezone(timezone.utc)).total_seconds()
     return max(seconds, 0.0) / (DAYS_PER_YEAR * 86400.0)

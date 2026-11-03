@@ -187,3 +187,37 @@ def test_duplicate_quotes_at_one_point_are_averaged(method):
             surface.add_volatility_point(K, T, 0.22)
     surface.build_surface()
     assert surface.interpolate(100.0, 0.1) == pytest.approx(0.21, abs=1e-9)
+
+
+def test_svi_fits_every_expiry_with_noisy_quotes():
+    """No expiry may be dropped silently because the optimiser stopped early."""
+    import warnings
+
+    import numpy as np
+
+    from derivflow.volatility.surface import VolatilitySurface
+
+    rng = np.random.default_rng(1)
+    strikes = np.linspace(80, 120, 8)
+    k = np.log(strikes / 100.0)
+    for _ in range(15):
+        surface = VolatilitySurface("svi", reference_price=100.0)
+        for T in (0.25, 1.0):
+            vols = 0.2 + 0.02 * T - 0.1 * k + 0.25 * k * k + rng.normal(0, 0.003, k.size)
+            for K, v in zip(strikes, vols, strict=True):
+                surface.add_volatility_point(K, T, v)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            surface.build_surface()
+        assert sorted(surface.smile_params) == [0.25, 1.0]
+        assert surface.interpolate(100.0, 1.0) == pytest.approx(0.22, abs=0.01)
+
+
+def test_svi_warns_about_expiries_with_too_few_quotes():
+
+    surface, _ = _svi_surface()
+    for K in (90.0, 100.0, 110.0):
+        surface.add_volatility_point(K, 2.0, 0.2)
+    with pytest.warns(UserWarning, match="fewer than 5"):
+        surface.build_surface()
+    assert 2.0 not in surface.smile_params

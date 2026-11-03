@@ -213,6 +213,14 @@ class VolatilitySurface:
             a, b, sigma, rho, m = x
             return self._svi_total_variance(k, a, b, sigma, rho, m) - w_market
 
+        def jacobian(x: np.ndarray) -> np.ndarray:
+            _, b, sigma, rho, m = x
+            km = k - m
+            root = np.sqrt(km**2 + sigma**2)
+            return np.column_stack(
+                (np.ones_like(k), rho * km + root, b * sigma / root, b * km, -b * (rho + km / root))
+            )
+
         lower = [-w_max, 0.0, 1e-4, -0.999, float(k.min()) - 1.0]
         upper = [w_max, 10.0, 5.0, 0.999, float(k.max()) + 1.0]
         best = None
@@ -222,29 +230,53 @@ class VolatilitySurface:
                 x0 = [0.5 * float(np.min(w_market)), 0.1, sigma0, rho0, k_min]
                 x0 = np.clip(x0, lower, upper)
                 fit = least_squares(
-                    residuals, x0, bounds=(lower, upper), xtol=1e-14, ftol=1e-14, gtol=1e-14
+                    residuals,
+                    x0,
+                    jac=jacobian,
+                    bounds=(lower, upper),
+                    xtol=1e-10,
+                    ftol=1e-10,
+                    gtol=1e-10,
+                    max_nfev=2000,
                 )
-                if best is None or fit.cost < best.cost:
+                if np.all(np.isfinite(fit.x)) and (best is None or fit.cost < best.cost):
                     best = fit
-        if best is None or not best.success:
+        if best is None:
             return None
+        if not best.success:
+            rmse = float(np.sqrt(2.0 * best.cost / k.size))
+            warnings.warn(
+                f"SVI fit for expiry {expiry:g} did not converge ({best.message}); using the "
+                f"best parameters found (total-variance RMSE {rmse:.2e})",
+                RuntimeWarning,
+                stacklevel=3,
+            )
         params = dict(zip(["a", "b", "sigma", "rho", "m"], map(float, best.x), strict=True))
         params["reference_strike"] = ref
         return params
 
     def build_surface_svi(self) -> None:
-        """Fit an SVI smile to every expiry that has at least five quotes."""
+        """Fit an SVI smile to every expiry that has at least five quotes.
+
+        Expiries with fewer quotes than the five SVI parameters are skipped
+        with a warning. A fit that stops before meeting its tolerances keeps
+        the best parameters found and warns (RuntimeWarning) with its RMSE.
+        """
         strikes, expiries, volatilities = self._prepare_data_arrays()
 
         self.smile_params = {}
         for expiry in np.unique(expiries):
             mask = expiries == expiry
-            if mask.sum() >= 5:  # five SVI parameters
-                svi_params = self._calibrate_svi_slice(
-                    strikes[mask], volatilities[mask], float(expiry)
+            if mask.sum() < 5:
+                warnings.warn(
+                    f"expiry {expiry:g} has fewer than 5 quotes and gets no SVI fit",
+                    UserWarning,
+                    stacklevel=2,
                 )
-                if svi_params:
-                    self.smile_params[float(expiry)] = svi_params
+                continue
+            svi_params = self._calibrate_svi_slice(strikes[mask], volatilities[mask], float(expiry))
+            if svi_params:
+                self.smile_params[float(expiry)] = svi_params
 
         self.surface_fitted = True
 

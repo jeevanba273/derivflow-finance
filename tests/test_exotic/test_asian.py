@@ -7,7 +7,9 @@ from derivflow.exotic.asian_options import AsianOptions
 
 def test_geometric_analytical_vs_mc(tol):
     asian = AsianOptions(num_sims=100000, random_seed=tol["mc_seed"])
-    analytic = asian.price_geometric_asian_analytical(100, 100, 1.0, 0.05, 0.2, "call")
+    analytic = asian.price_geometric_asian_analytical(
+        100, 100, 1.0, 0.05, 0.2, "call", average_type="discrete", num_fixings=100
+    )
     mc = asian.price_geometric_asian_mc(100, 100, 1.0, 0.05, 0.2, "call", num_steps=100)
     assert abs(mc.price - analytic.price) < tol["mc_sigma"] * mc.std_error
 
@@ -82,3 +84,31 @@ def test_single_fixing_geometric_equals_european(bs_ref):
         100, 95, 1.0, 0.05, 0.25, "call", average_type="discrete", num_fixings=1
     ).price
     assert got == pytest.approx(bs_ref(100, 95, 1.0, 0.05, 0.25, "call"), rel=1e-12)
+
+
+@pytest.mark.parametrize("n", [4, 12])
+def test_geometric_mc_matches_discrete_closed_form(n):
+    """Simulated geometric average over the same n fixings as the closed form."""
+    mc = AsianOptions(num_sims=200_000, random_seed=5).price_geometric_asian_mc(
+        100, 100, 1.0, 0.05, 0.2, "call", num_steps=n
+    )
+    ref = _discrete_geometric_reference(100, 100, 1.0, 0.05, 0.2, n, "call")
+    assert abs(mc.price - ref) < 4 * mc.std_error
+
+
+@pytest.mark.parametrize("n", [4, 12])
+def test_control_variate_estimate_is_unbiased(n):
+    """The control-variate estimate must agree with plain Monte Carlo.
+
+    With a control whose analytical mean does not match the simulated average
+    (e.g. continuous-averaging mean for a discrete average) the estimate is
+    biased by several plain-MC standard errors.
+    """
+    cv = AsianOptions(num_sims=200_000, random_seed=21).price_arithmetic_asian_mc(
+        100, 100, 1.0, 0.05, 0.2, "call", num_steps=n, use_control_variate=True
+    )
+    plain = AsianOptions(num_sims=200_000, random_seed=22).price_arithmetic_asian_mc(
+        100, 100, 1.0, 0.05, 0.2, "call", num_steps=n, use_control_variate=False
+    )
+    combined_se = (cv.std_error**2 + plain.std_error**2) ** 0.5
+    assert abs(cv.price - plain.price) < 4 * combined_se

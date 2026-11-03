@@ -155,7 +155,11 @@ class AsianOptions:
         self, S: float, T: float, r: float, sigma: float, num_steps: int = 252
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
-        Generate price paths for Asian option Monte Carlo
+        Simulate GBM exactly at the fixing dates t_i = i T / n, i = 1..n.
+
+        The averages are taken over the n fixings only; today's spot S is not
+        a fixing. This is the same schedule as the discrete closed form in
+        :meth:`price_geometric_asian_analytical`.
 
         Returns:
         --------
@@ -163,23 +167,13 @@ class AsianOptions:
             (final_prices, arithmetic_averages, geometric_averages)
         """
         dt = T / num_steps
-
-        # Generate random shocks (same shape/order as before for seed reproducibility)
         Z = np.random.standard_normal((self.num_sims, num_steps))
-
-        # Vectorized exact-GBM via cumulative sum of log-returns
         increments = (r - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * Z
-        cum_log_returns = np.zeros((self.num_sims, num_steps + 1))
-        np.cumsum(increments, axis=1, out=cum_log_returns[:, 1:])
-        paths = S * np.exp(cum_log_returns)
+        log_paths = np.log(S) + np.cumsum(increments, axis=1)  # columns t_1..t_n
+        paths = np.exp(log_paths)
 
-        # Calculate averages
-        arithmetic_avg = np.mean(paths, axis=1)
-
-        # Geometric average (using log for numerical stability)
-        log_paths = np.log(paths)
-        geometric_avg = np.exp(np.mean(log_paths, axis=1))
-
+        arithmetic_avg = paths.mean(axis=1)
+        geometric_avg = np.exp(log_paths.mean(axis=1))
         final_prices = paths[:, -1]
 
         return final_prices, arithmetic_avg, geometric_avg
@@ -248,8 +242,10 @@ class AsianOptions:
             discounted_geometric = geometric_payoffs * np.exp(-r * T)
 
             # Get analytical price for geometric Asian (control variate)
+            # The control's analytical mean must be for the same fixing schedule
+            # as the simulated geometric average, otherwise the estimate is biased.
             geometric_analytical = self.price_geometric_asian_analytical(
-                S, K, T, r, sigma, option_type
+                S, K, T, r, sigma, option_type, average_type="discrete", num_fixings=num_steps
             )
 
             # Calculate optimal control variate coefficient

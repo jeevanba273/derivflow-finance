@@ -1,41 +1,41 @@
-# Market Data
+# Market data
 
-`AdvancedMarketData` pulls live market data through
-[`yfinance`](https://pypi.org/project/yfinance/): spot prices, full option
-chains, historical volatility, and a risk-free-rate proxy. It also assesses data
-quality and detects whether the US market is currently open.
+`derivflow.utils.market_data.AdvancedMarketData` fetches data from Yahoo Finance through
+`yfinance`. It is an optional extra and the core package never imports it:
 
-```{note}
-This module makes **live network calls** to Yahoo Finance. It requires an
-active internet connection, and results depend on data availability, market
-hours, and upstream rate limits. It is therefore not part of the offline core
-and is only importable when `yfinance` is installed.
+```bash
+pip install "derivflow-finance[data]"
 ```
+
+The examples on this page need internet access and are not run by the test suite; the module
+itself is tested offline against a stub of `yfinance`.
 
 ```python
-from derivflow import AdvancedMarketData
+# not run in the tests: needs internet access
+from derivflow.utils.market_data import AdvancedMarketData
 
 md = AdvancedMarketData()
-
-# Current/last spot price
-price, timestamp = md.get_current_price("AAPL")
-print(f"AAPL: {price:.2f} at {timestamp}")
-
-# Full option chain for the nearest expiry
-chain = md.get_options_chain("AAPL")
-print(f"{chain.total_options} options, quality: {chain.data_quality}")
-
-# 30-day historical volatility
-hv = md.get_historical_volatility("AAPL", days=30)
-print(f"Historical vol: {hv:.2%}")
+spot, when = md.get_current_price("SPY")
+rate = md.get_risk_free_rate()  # 13-week T-bill yield (^IRX) / 100
+vol_30d = md.get_historical_volatility("SPY", days=30)
+surface_points = md.build_volatility_surface_from_market("SPY", max_expiries=3, r=rate)
+print(spot, rate, vol_30d, len(surface_points["surface_data"]), surface_points["dropped"])
 ```
 
-The returned `MarketDataResult` can be fed straight into the implied-volatility
-solver via `implied_vol_from_chain`, or its `surface_data` (from
-`build_volatility_surface_from_market`) into `VolatilitySurface`.
+What the methods do:
 
-**Key result fields.** `get_current_price` returns a `(price, timestamp)` tuple.
-`get_options_chain` returns a `MarketDataResult` with `symbol`, `spot_price`,
-`options_data` (a list of `OptionData`), `total_options`, `data_quality`, and
-`market_status`. Each `OptionData` carries `strike`, `expiry`, `option_type`,
-`last_price`, `bid`, `ask`, `volume`, `open_interest`, and `implied_volatility`.
+- `get_options_chain` returns the calls and puts of one expiry as `OptionData` rows.
+- `build_volatility_surface_from_market` solves each quote's implied volatility from the
+  bid/ask mid (last trade when there is no two-sided quote) with this package's solver, drops
+  quotes without a solution and counts them in `"dropped"`. Yahoo's own figure is kept as
+  `vendor_implied_volatility`. Time to expiry is ACT/365 to 16:00 New York time.
+- `get_historical_volatility` is the sample standard deviation (ddof = 1) of daily log returns
+  times sqrt(252).
+- `get_risk_free_rate` uses the 13-week Treasury bill yield as a continuously compounded short
+  rate, which is an approximation; it raises when the data are unavailable unless a `default`
+  is given.
+- `is_market_open` knows weekends and regular hours (09:30 to 16:00 New York), not exchange
+  holidays.
+
+Yahoo data are delayed and can be stale or missing, especially outside trading hours. Check
+quotes before relying on numbers derived from them.

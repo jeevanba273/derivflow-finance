@@ -1,68 +1,83 @@
-# Volatility Surface
+# Volatility surfaces
 
-`VolatilitySurface` builds and interpolates an implied-volatility surface from
-discrete market quotes. It supports cubic-spline / RBF interpolation and an SVI
-smile model, and can extract smiles, check basic arbitrage conditions, and
-report surface statistics. The `create_sample_surface` helper returns a surface
-pre-populated with a realistic synthetic smile for experimentation.
+`VolatilitySurface` turns (strike, expiry, implied volatility) quotes into a function of
+strike and expiry. Expiries are in years and volatilities are annualised.
+
+| method | what it does |
+|---|---|
+| `"rbf"` (default) | thin-plate radial basis function on (ln K, T), passes through every quote |
+| `"linear"` | piecewise-linear on a Delaunay triangulation of (ln K, T); nearest quote outside the hull |
+| `"svi"` | raw SVI (Gatheral, 2004) per expiry, total variance linear in T between expiries |
+
+None of the methods forces the surface to be free of arbitrage.
+
+## SVI
+
+Raw SVI writes the total implied variance w = sigma_imp^2 T of one expiry as
+
+$$w(k) = a + b\left(\rho (k - m) + \sqrt{(k - m)^2 + \sigma^2}\right), \qquad k = \ln(K / K_{\text{ref}}).$$
+
+Each expiry with at least five quotes is fitted by bounded least squares; `reference_price`
+sets K_ref (otherwise the median strike of the expiry is used).
+
+```python
+import numpy as np
+
+from derivflow import VolatilitySurface
+
+surface = VolatilitySurface(method="svi", reference_price=100.0)
+for T, atm in ((0.25, 0.22), (1.0, 0.20)):
+    for K in np.linspace(70, 130, 13):
+        k = np.log(K / 100.0)
+        surface.add_volatility_point(K, T, atm - 0.10 * k + 0.25 * k * k)
+surface.build_surface()
+
+for K in (80.0, 100.0, 120.0):
+    print(
+        f"K={K:5.1f}: T=0.25 {surface.interpolate(K, 0.25):.4f}, T=0.5 {surface.interpolate(K, 0.5):.4f}"
+    )
+```
+
+```text
+K= 80.0: T=0.25 0.2549, T=0.5 0.2418
+K=100.0: T=0.25 0.2199, T=0.5 0.2068
+K=120.0: T=0.25 0.2103, T=0.5 0.1972
+```
+
+## Checking a smile for arbitrage
+
+`check_arbitrage` prices calls from a smile and tests the static no-arbitrage conditions
+across strikes: call prices non-increasing with slopes no steeper than -e^{-rT} (vertical
+spreads) and convex in strike (butterflies). Calendar arbitrage is not checked.
+
+```python
+strikes = np.linspace(70, 130, 25)
+smile = np.array([surface.interpolate(K, 0.5) for K in strikes])
+print(surface.check_arbitrage(strikes, smile, expiry=0.5, spot=100.0, r=0.03)["arbitrage_free"])
+
+smile[12] += 0.08  # a volatility spike at K = 100
+result = surface.check_arbitrage(strikes, smile, expiry=0.5, spot=100.0, r=0.03)
+print(result["arbitrage_free"], result["butterfly_arbitrage"])
+```
+
+```text
+True
+False True
+```
+
+## Interpolating surfaces
 
 ```python
 from derivflow import create_sample_surface
 
-surface = create_sample_surface()
-surface.build_surface(method="cubic_spline")
-
-vol = surface.interpolate(strike=102, expiry=0.25)
-print(f"Interpolated vol: {vol:.2%}")
-
-smile = surface.get_smile(expiry=0.25, num_points=5)
-print(smile["strikes"], smile["volatilities"])
-
-stats = surface.surface_statistics()
-print(stats["num_points"], stats["mean_volatility"])
+sample = create_sample_surface()  # 36 illustrative quotes with noise, fixed seed
+sample.build_surface(method="rbf")
+print(round(sample.interpolate(100.0, 0.25), 4), round(sample.interpolate(102.5, 0.4), 4))
 ```
 
-To build a surface from your own data, pass a list of dicts (or a pandas
-DataFrame) with `strike`, `expiry`, and `volatility` keys to
-`load_market_data`, then call `build_surface`.
-
-**Key result fields.** `interpolate` returns a `float` volatility. `get_smile`
-returns a dict with `strikes`, `volatilities`, and `expiry`.
-`surface_statistics` returns a dict including `num_points`, `min_volatility`,
-`max_volatility`, `mean_volatility`, and `vol_of_vol`.
-
-## Implied Volatility Solver
-
-When you have market **prices** rather than vols, invert them with the implied
-volatility solver. `implied_volatility` solves a single quote with
-Newton-Raphson and a Brent fallback; `implied_volatility_vectorized` broadcasts
-over array inputs; and `implied_vol_from_chain` inverts a whole option chain.
-
-```python
-from derivflow import implied_volatility, implied_vol_from_chain
-
-iv = implied_volatility(price=5.0, S=100, K=100, T=0.5, r=0.03, option_type="call", q=0.0)
-print(f"Implied vol: {iv:.4f}")
+```text
+0.2363 0.2465
 ```
 
-`implied_vol_from_chain` accepts a `MarketDataResult`, a pandas DataFrame, or a
-list of dicts. Tabular inputs must provide `strike`, `expiry` (time to expiry in
-**years**), `option_type`, and a price column. It returns a list of dicts whose
-shape (`strike`, `expiry`, `volatility`, `market_price`, `option_type`) feeds
-directly into `VolatilitySurface.load_market_data`:
-
-```python
-chain = [
-    {"strike": 95, "expiry": 0.25, "option_type": "call", "market_price": 7.1},
-    {"strike": 100, "expiry": 0.25, "option_type": "call", "market_price": 4.2},
-    {"strike": 105, "expiry": 0.25, "option_type": "call", "market_price": 2.3},
-]
-rows = implied_vol_from_chain(chain, S=100, r=0.03, q=0.0)
-for row in rows:
-    print(row["strike"], row["volatility"])
-```
-
-**Key result fields.** `implied_volatility` returns a `float` volatility, or
-`np.nan` when the price is outside the no-arbitrage bounds (unless
-`on_fail="raise"`). `implied_vol_from_chain` returns a list of dicts with the
-keys `strike`, `expiry`, `volatility`, `market_price`, and `option_type`.
+`get_smile` samples one expiry over a strike range and `plot_surface` draws the surface with
+matplotlib (extra `[plot]`).

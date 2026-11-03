@@ -1,33 +1,68 @@
-# Pricing
+# European option pricing
 
-The core pricing layer offers three methodologies behind a unified interface:
-analytical Black-Scholes-Merton (`BlackScholesAnalytical`), a `BinomialTree`
-(European and American), and a `MonteCarloEngine`. The `PricingEngine` class
-coordinates them, and the `price_european_option` helper is the simplest entry
-point.
+`price_european_option` prices one option by name of method; `black_scholes_price` is the
+closed form on NumPy arrays.
 
-`price_european_option` accepts a continuous dividend yield `q` when using the
-analytical method (`method="black_scholes"`, the default). The binomial and
-Monte Carlo engines do not model dividends, so passing a non-zero `q` with those
-methods raises a clear error.
+## Closed form
+
+The Black-Scholes-Merton price with continuous dividend yield `q`:
+
+$$C = S e^{-qT} N(d_1) - K e^{-rT} N(d_2), \qquad P = K e^{-rT} N(-d_2) - S e^{-qT} N(-d_1),$$
+
+$$d_1 = \frac{\ln(S/K) + (r - q + \sigma^2/2) T}{\sigma\sqrt{T}}, \qquad d_2 = d_1 - \sigma\sqrt{T}.$$
 
 ```python
-from derivflow import PricingEngine, price_european_option
+from derivflow import black_scholes_price, price_european_option
 
-# Convenience helper (analytical, supports dividend yield q)
-price = price_european_option(S=100, K=105, T=0.25, r=0.05, sigma=0.2, option_type="call", q=0.02)
-print(f"Call price: {price:.4f}")
+# Haug (2007): S=60, K=65, T=0.25, r=8%, sigma=30% gives a call of 2.1334
+print(round(price_european_option(60, 65, 0.25, 0.08, 0.30, "call"), 4))
 
-# Compare methods through the engine
-engine = PricingEngine()
-comparison = engine.compare_methods(S=100, K=105, T=0.25, r=0.05, sigma=0.2, option_type="call")
-for method, result in comparison.items():
-    print(method, result.get("price"))
+# Merton's dividend case: S=100, K=95, T=0.5, r=10%, q=5%, sigma=20% gives a put of 2.4648
+print(round(price_european_option(100, 95, 0.5, 0.10, 0.20, "put", q=0.05), 4))
 ```
 
-**Key result fields.** `price_european_option` returns a `float`. The
-`PricingEngine.compare_methods` call returns a dict keyed by method name; each
-value is itself a dict containing at least a `price` key (the Monte Carlo entry
-additionally carries `std_error`, `confidence_interval`, and `num_simulations`).
-`PricingEngine.validate_put_call_parity` returns a dict with `absolute_error`
-and a boolean `parity_satisfied`.
+```text
+2.1334
+2.4648
+```
+
+## Many options at once
+
+`black_scholes_price` broadcasts its arguments, so a strike ladder or a whole grid is one call.
+
+```python
+import numpy as np
+
+strikes = np.array([80.0, 90.0, 100.0, 110.0, 120.0])
+calls = black_scholes_price(100.0, strikes, 1.0, 0.03, 0.2, "call", 0.01)
+puts = black_scholes_price(100.0, strikes, 1.0, 0.03, 0.2, "put", 0.01)
+print(np.round(calls, 4))
+
+# put-call parity: C - P = S e^{-qT} - K e^{-rT}
+parity = (calls - puts) - (100.0 * np.exp(-0.01) - strikes * np.exp(-0.03))
+print(f"max parity error {np.abs(parity).max():.1e}")
+```
+
+```text
+[22.3185 14.6592  8.8273  4.8947  2.5216]
+max parity error 1.1e-14
+```
+
+## Choosing a method
+
+`price_european_option(..., method=...)` accepts `"black_scholes"` (default), `"binomial"`
+(100-step tree, see [trees](trees.md)) and `"monte_carlo"` (100,000 draws, see
+[Monte Carlo](monte-carlo.md)). The tree and Monte Carlo values approximate the closed form.
+
+```python
+for method in ("black_scholes", "binomial"):
+    print(method, round(price_european_option(100, 105, 0.5, 0.05, 0.25, "call", method=method), 4))
+```
+
+```text
+black_scholes 5.9885
+binomial 6.0027
+```
+
+Expired options (T <= 0) return their intrinsic value. Non-positive spot, strike or volatility
+raises `ValueError` naming the parameter.

@@ -1,7 +1,4 @@
-Stochastic Volatility Models
-============================
+Heston model
+============
 
 .. automodule:: derivflow.models.heston
-   :members:
-   :undoc-members:
-   :show-inheritance:

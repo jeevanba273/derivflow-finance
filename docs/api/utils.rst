@@ -1,7 +1,4 @@
-Market Data Utilities
-=====================
+Market data (optional, extra ``[data]``)
+========================================
 
 .. automodule:: derivflow.utils.market_data
-   :members:
-   :undoc-members:
-   :show-inheritance:

@@ -1,16 +1,16 @@
-API Reference
+API reference
 =============
 
-This section documents the public modules of DERIVFLOW-FINANCE, generated
-automatically from the source docstrings.
+Generated from the docstrings. Units and conventions are described in
+:doc:`../methods` and on each module page.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    core
    greeks
-   exotic
    volatility
+   exotic
    models
    portfolio
    utils

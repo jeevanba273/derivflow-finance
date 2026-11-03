@@ -1,7 +1,12 @@
-Portfolio Risk
+Portfolio risk
 ==============
 
+Portfolio analyzer
+------------------
+
 .. automodule:: derivflow.portfolio.portfolio_risk
-   :members:
-   :undoc-members:
-   :show-inheritance:
+
+VaR and expected shortfall functions
+------------------------------------
+
+.. automodule:: derivflow.portfolio.risk_measures

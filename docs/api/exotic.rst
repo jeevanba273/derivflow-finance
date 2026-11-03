@@ -1,18 +1,17 @@
-Exotic Options
-==============
+Barrier and Asian options
+=========================
 
-Barrier Options
+Barrier options
 ---------------
 
 .. automodule:: derivflow.exotic.barrier_options
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
-Asian Options
+Asian options
 -------------
 
 .. automodule:: derivflow.exotic.asian_options
-   :members:
-   :undoc-members:
-   :show-inheritance:
+
+Convenience function
+--------------------
+
+.. autofunction:: derivflow.exotic.price_barrier_option

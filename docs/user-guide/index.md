@@ -1,19 +1,20 @@
-# User Guide
+# User guide
 
-The user guide walks through each subsystem of DERIVFLOW-FINANCE with focused
-examples against the real public API. Start with pricing and Greeks, then move
-on to exotics, volatility, stochastic volatility, portfolio risk, market data,
-and visualization.
+One page per area. Every code block on these pages runs as written (the test suite executes
+them) and the output shown under it was produced by running it.
 
 ```{toctree}
 :maxdepth: 1
 
 pricing
 greeks
+implied-volatility
+trees
+monte-carlo
 exotics
-volatility-surface
 heston
-portfolio-risk
+volatility-surface
+risk
 market-data
 visualization
 ```

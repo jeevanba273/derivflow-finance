@@ -5,7 +5,8 @@ Run with:
 
     pip install -e ".[validation]"
     python benchmarks/run_benchmarks.py                    # Markdown to stdout
-    python benchmarks/run_benchmarks.py --output benchmarks/results.md --json benchmarks/results.json
+    python benchmarks/run_benchmarks.py --output benchmarks/results.md
+    python benchmarks/run_benchmarks.py --json benchmarks/results.json
     python benchmarks/run_benchmarks.py --quick            # smaller sizes, for a smoke test
 
 Every timing is repeated (``--reps``, default 7) after one warm-up run; tables
@@ -19,7 +20,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import os
 import platform
 import statistics
@@ -471,12 +471,12 @@ def bench_implied_vol(reps: int, quick: bool) -> dict[str, Any]:
 
     if ql is not None:
         n_ql = min(len(xs["price"]), 500 if quick else 2_000)
-        xq = {k: v[:n_ql] for k, v in xs.items()}
+        xq = {k: v[:n_ql].copy() for k, v in xs.items()}
         env = QLEuropean(365)
         opts = []
         today = env.today
         for i in range(n_ql):
-            days = max(1, int(round(xq["T"][i] * 365)))
+            days = max(1, round(xq["T"][i] * 365))
             xq["T"][i] = days / 365
             xq["price"][i] = black_scholes_price(
                 xq["S"][i], xq["K"][i], xq["T"][i], 0.03, xq["sigma"][i], xq["ot"][i], 0.01
@@ -559,7 +559,8 @@ def bench_greeks(reps: int, quick: bool) -> dict[str, Any]:
             ["QuantLib `AnalyticEuropeanEngine` (5 Greeks, scalar loop)", f"{n:,}", rate_cell(t, n)]
         )
         notes.append(
-            "derivflow computes 10 Greeks per call, QuantLib 5 here (delta, gamma, vega, theta, rho)."
+            "derivflow computes 10 Greeks per call, QuantLib 5 here "
+            "(delta, gamma, vega, theta, rho)."
         )
         ref = np.array(ql_greeks())
         mine = np.array(
@@ -596,7 +597,7 @@ def bench_monte_carlo(reps: int, quick: bool) -> dict[str, Any]:
                     f"{res['price']:.4f}",
                     f"{res['std_error']:.4f}",
                     f"{abs(res['price'] - truth):.4f}",
-                    time_cell(t, 1e3, "ms"),
+                    time_cell(t, 1e6, "us"),
                 ]
             )
     return {"rows": rows, "truth": truth}
@@ -626,7 +627,12 @@ def bench_trees_heston(reps: int, quick: bool) -> dict[str, Any]:
         ref = opt.NPV()
         for steps in (100, 500, 2000):
             opt.setPricingEngine(ql.BinomialVanillaEngine(proc, "crr", steps))
-            t = timed(opt.NPV, reps)
+
+            def ql_tree(opt=opt):
+                opt.recalculate()  # QuantLib caches results; force a fresh valuation
+                return opt.NPV()
+
+            t = timed(ql_tree, reps)
             rows.append(
                 [
                     f"QuantLib CRR tree ({steps} steps)",
@@ -744,17 +750,20 @@ def main() -> None:
         "",
         table(["item", "value"], [[k, str(v)] for k, v in env.items()]),
         "",
-        f"Each timing: one warm-up run, then {args.reps} repetitions; median and [min, max].",
+        f"Each timing: one warm-up run, then {args.reps} repetitions; median and [min, max]. "
+        "Everything runs single-threaded in one Python process.",
         "",
         "## European option pricing throughput (options per second)",
         "",
         table(["implementation", "options", "options/s median [min, max]"], pricing["rows"]),
         "",
         *[f"- {n}" for n in pricing["notes"]],
-        "- Vectorised rows: random S, K in [80, 120], T in [0.05, 2], r in [0, 6%], q in [0, 3%], sigma in [10%, 60%].",
+        "- Vectorised rows: random S, K in [80, 120], T in [0.05, 2], r in [0, 6%], "
+        "q in [0, 3%], sigma in [10%, 60%].",
         "- Scalar rows: K=100, T=1, r=3%, q=1%, the same random S and sigma for every library.",
         "",
-        "Accuracy against QuantLib (random inputs, maturities rounded to whole days):",
+        "Accuracy against QuantLib (random inputs, maturities rounded to whole days; the "
+        "largest relative errors are on the smallest, deep out-of-the-money prices):",
         "",
         table(["comparison", "options", "max abs error", "max rel error"], pricing["accuracy"])
         if pricing["accuracy"]
@@ -791,7 +800,8 @@ def main() -> None:
         "",
         "## Monte Carlo: standard error against number of paths",
         "",
-        f"ATM European call, S=K=100, T=1, r=5%, sigma=20%, seed 11; Black-Scholes value {mc['truth']:.4f}.",
+        "ATM European call, S=K=100, T=1, r=5%, sigma=20%, seed 11; "
+        f"Black-Scholes value {mc['truth']:.4f}.",
         "",
         table(
             ["paths", "method", "price", "std error", "abs error", "time median [min, max]"],
@@ -807,7 +817,8 @@ def main() -> None:
         "",
         *[f"- {n}" for n in th["notes"]],
         "",
-        "Heston analytic call prices, 13 strikes 70-130, T=1, r=3%, q=1%, v0=theta=0.04, kappa=2, sigma=0.5, rho=-0.7 (time per price):",
+        "Heston analytic call prices, 13 strikes 70-130, T=1, r=3%, q=1%, v0=theta=0.04, "
+        "kappa=2, sigma=0.5, rho=-0.7 (time per price):",
         "",
         table(
             ["implementation", "time per price median [min, max]", "max abs diff", "max rel diff"],

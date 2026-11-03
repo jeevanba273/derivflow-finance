@@ -63,3 +63,26 @@ def test_from_chain_list_of_dicts():
     ]
     out = implied_vol_from_chain(rows, S=100, r=0.05)
     assert out[0]["volatility"] == pytest.approx(0.22, abs=1e-4)
+
+
+def test_from_chain_honours_on_fail():
+    rows = [{"strike": 60, "expiry": 0.5, "option_type": "call", "market_price": 1.0}]
+    assert np.isnan(implied_vol_from_chain(rows, S=100, r=0.05)[0]["volatility"])
+    with pytest.raises(ValueError, match="intrinsic"):
+        implied_vol_from_chain(rows, S=100, r=0.05, on_fail="raise")
+
+
+@pytest.mark.parametrize("field", ["bid", "ask", "last", "mid"])
+def test_from_chain_uses_price_field_for_dict_rows(field):
+    prices = {
+        "bid": price_european_option(100, 100, 0.5, 0.05, 0.20, "call"),
+        "ask": price_european_option(100, 100, 0.5, 0.05, 0.30, "call"),
+        "last_price": price_european_option(100, 100, 0.5, 0.05, 0.40, "call"),
+    }
+    row = {"strike": 100, "expiry": 0.5, "option_type": "call", **prices}
+    out = implied_vol_from_chain([row], S=100, r=0.05, price_field=field)[0]
+    expected = {"bid": 0.20, "ask": 0.30, "last": 0.40}.get(field)
+    if field == "mid":
+        assert out["market_price"] == pytest.approx(0.5 * (prices["bid"] + prices["ask"]))
+    else:
+        assert out["volatility"] == pytest.approx(expected, abs=1e-9)

@@ -339,9 +339,12 @@ def implied_vol_from_chain(
     q : float
         Continuous dividend yield (default 0.0).
     price_field : str
-        Which price to invert: 'mid' (default, (bid+ask)/2 with last_price
-        fallback), 'last', 'bid', or 'ask'. Ignored for explicit dict/DataFrame
-        rows that already carry a 'market_price'.
+        Which price to invert when a row has no 'market_price': 'mid'
+        (default; (bid + ask) / 2, or the last price without a two-sided
+        quote), 'last', 'bid' or 'ask'.
+    kwargs
+        Keyword arguments: passed to :func:`implied_volatility`; ``on_fail``
+        defaults to 'nan' here, so unsolvable quotes give NaN.
 
     Returns:
     --------
@@ -349,6 +352,9 @@ def implied_vol_from_chain(
         One row per option with keys: ``strike``, ``expiry`` (years),
         ``volatility`` (solved IV), ``market_price``, ``option_type``.
     """
+    if price_field not in ("mid", "last", "bid", "ask"):
+        raise ValueError("price_field must be 'mid', 'last', 'bid' or 'ask'")
+    kwargs.setdefault("on_fail", "nan")
     rows = _normalize_chain(chain, price_field)
     results: list[dict] = []
     for row in rows:
@@ -360,7 +366,6 @@ def implied_vol_from_chain(
             r,
             option_type=row["option_type"],
             q=q,
-            on_fail="nan",
             **kwargs,
         )
         results.append(
@@ -385,6 +390,16 @@ def _mid_price(last_price, bid, ask):
     return last_price
 
 
+def _pick_price(price_field: str, last_price: Any, bid: Any, ask: Any) -> Any:
+    if price_field == "last":
+        return last_price
+    if price_field == "bid":
+        return bid
+    if price_field == "ask":
+        return ask
+    return _mid_price(last_price, bid, ask)
+
+
 def _normalize_chain(chain: Any, price_field: str) -> list[dict]:
     """Normalize supported chain inputs to a list of {strike, expiry, market_price, option_type}."""
     # MarketDataResult (duck-typed via options_data attribute)
@@ -394,14 +409,7 @@ def _normalize_chain(chain: Any, price_field: str) -> list[dict]:
             expiry_years = _expiry_to_years(opt.expiry)
             if expiry_years is None or expiry_years <= 0:
                 continue
-            if price_field == "last":
-                mp = opt.last_price
-            elif price_field == "bid":
-                mp = opt.bid
-            elif price_field == "ask":
-                mp = opt.ask
-            else:
-                mp = _mid_price(opt.last_price, opt.bid, opt.ask)
+            mp = _pick_price(price_field, opt.last_price, opt.bid, opt.ask)
             if mp is None or mp <= 0:
                 continue
             rows.append(
@@ -414,21 +422,15 @@ def _normalize_chain(chain: Any, price_field: str) -> list[dict]:
             )
         return rows
 
-    # pandas DataFrame
-    try:
-        import pandas as pd
-
-        if isinstance(chain, pd.DataFrame):
-            chain = chain.to_dict("records")
-    except ImportError:  # pragma: no cover
-        pass
+    if hasattr(chain, "to_dict") and hasattr(chain, "columns"):  # pandas DataFrame
+        chain = chain.to_dict("records")
 
     # list of dicts
     rows = []
     for rec in chain:
         mp = rec.get("market_price")
         if mp is None:
-            mp = _mid_price(rec.get("last_price"), rec.get("bid"), rec.get("ask"))
+            mp = _pick_price(price_field, rec.get("last_price"), rec.get("bid"), rec.get("ask"))
         if mp is None or mp <= 0:
             continue
         rows.append(

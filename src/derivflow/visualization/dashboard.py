@@ -15,23 +15,10 @@ from typing import Dict, List, Optional, Union, Tuple
 import warnings
 from datetime import datetime, timedelta
 
-# Import our modules - handle both relative and absolute imports
-try:
-    # Try relative imports first (when used as module)
-    from ..core.pricing_engine import PricingEngine, price_european_option
-    from ..greeks.calculator import GreeksCalculator
-    from ..volatility.surface import VolatilitySurface, create_sample_surface
-    from ..utils.market_data import AdvancedMarketData
-except ImportError:
-    # Fallback to absolute imports (when run directly)
-    import sys
-    import os
-    sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+from ..core.pricing_engine import PricingEngine, price_european_option
+from ..greeks.calculator import GreeksCalculator
+from ..volatility.surface import create_sample_surface
 
-    from derivflow.core.pricing_engine import PricingEngine, price_european_option
-    from derivflow.greeks.calculator import GreeksCalculator
-    from derivflow.volatility.surface import VolatilitySurface, create_sample_surface
-    from derivflow.utils.market_data import AdvancedMarketData
 
 class DerivativesDashboard:
     """
@@ -56,7 +43,7 @@ class DerivativesDashboard:
         self.theme = theme
         self.pricing_engine = PricingEngine()
         self.greeks_calc = GreeksCalculator()
-        self.market_data = AdvancedMarketData()
+        self._market_data = None
 
         # Color scheme for professional look
         self.colors = {
@@ -69,6 +56,15 @@ class DerivativesDashboard:
             'text': '#ffffff',      # White text
             'grid': '#444444'       # Gray grid
         }
+
+    @property
+    def market_data(self):
+        """Market data client, created on first use (requires the ``[data]`` extra)."""
+        if self._market_data is None:
+            from ..utils.market_data import AdvancedMarketData
+
+            self._market_data = AdvancedMarketData()
+        return self._market_data
 
     def plot_option_payoff(self, K: float, premium: float, option_type: str = 'call',
                           spot_range: Optional[Tuple[float, float]] = None) -> go.Figure:

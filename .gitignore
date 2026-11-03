@@ -16,9 +16,6 @@ dist/
 *.egg
 .eggs/
 
-# setuptools_scm generated version file
-src/derivflow/_version.py
-
 # Test / coverage artifacts
 .coverage
 .coverage.*

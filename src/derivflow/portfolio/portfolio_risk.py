@@ -11,7 +11,6 @@ Professional-grade portfolio risk management and analytics:
 """
 
 import numpy as np
-import pandas as pd
 from scipy import stats
 from scipy.optimize import minimize
 from typing import Dict, List, Optional, Union, Tuple, Any
@@ -19,19 +18,8 @@ from dataclasses import dataclass, field
 import warnings
 from datetime import datetime, timedelta
 
-# Import our modules for portfolio construction
-try:
-    from ..core.pricing_engine import PricingEngine, price_european_option
-    from ..greeks.calculator import GreeksCalculator
-    from ..utils.market_data import AdvancedMarketData
-except ImportError:
-    # Fallback for direct execution
-    import sys
-    import os
-    sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-    from derivflow.core.pricing_engine import PricingEngine, price_european_option
-    from derivflow.greeks.calculator import GreeksCalculator
-    from derivflow.utils.market_data import AdvancedMarketData
+from ..core.pricing_engine import PricingEngine, price_european_option
+from ..greeks.calculator import GreeksCalculator
 
 @dataclass
 class Position:
@@ -119,7 +107,6 @@ class PortfolioRiskAnalyzer:
         self.risk_free_rate = risk_free_rate
         self.pricing_engine = PricingEngine()
         self.greeks_calc = GreeksCalculator()
-        self.market_data = AdvancedMarketData()
 
         # Historical data for calculations
         self.returns_data = {}

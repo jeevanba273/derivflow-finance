@@ -7,11 +7,9 @@ Supports multiple methodologies and market data integration.
 """
 
 import numpy as np
-import pandas as pd
 from scipy import interpolate
 from scipy.optimize import minimize
-from typing import Dict, List, Tuple, Optional, Union
-import matplotlib.pyplot as plt
+from typing import Any, Dict, List, Tuple, Optional, Union
 from dataclasses import dataclass
 import warnings
 
@@ -85,17 +83,17 @@ class VolatilitySurface:
         self.vol_data.append(vol_point)
         self.surface_fitted = False
 
-    def load_market_data(self, data: Union[pd.DataFrame, List[Dict]]) -> None:
+    def load_market_data(self, data: Any) -> None:
         """
         Load market volatility data in bulk
 
         Parameters:
         -----------
-        data : pd.DataFrame or List[Dict]
+        data : pandas.DataFrame or List[Dict]
             Market data with columns: strike, expiry, volatility
         """
-        if isinstance(data, pd.DataFrame):
-            for _, row in data.iterrows():
+        if hasattr(data, 'to_dict') and hasattr(data, 'columns'):  # pandas DataFrame
+            for row in data.to_dict('records'):
                 self.add_volatility_point(
                     strike=row['strike'],
                     expiry=row['expiry'],
@@ -198,22 +196,16 @@ class VolatilitySurface:
         """Build volatility surface using SVI model"""
         strikes, expiries, volatilities = self._prepare_data_arrays()
 
-        # Group data by expiry
-        df = pd.DataFrame({
-            'strike': strikes,
-            'expiry': expiries,
-            'volatility': volatilities
-        })
-
         self.smile_params = {}
 
-        for expiry in df['expiry'].unique():
-            slice_data = df[df['expiry'] == expiry]
-            if len(slice_data) >= 5:  # Need minimum points for calibration
+        # Group data by expiry
+        for expiry in np.unique(expiries):
+            mask = expiries == expiry
+            if mask.sum() >= 5:  # Need minimum points for calibration
                 svi_params = self._calibrate_svi_slice(
-                    slice_data['strike'].values,
-                    slice_data['volatility'].values,
-                    expiry
+                    strikes[mask],
+                    volatilities[mask],
+                    float(expiry)
                 )
                 if svi_params:
                     self.smile_params[expiry] = svi_params
@@ -391,7 +383,9 @@ class VolatilitySurface:
         }
 
     def plot_surface(self, figsize: Tuple[int, int] = (12, 8)) -> None:
-        """Plot 3D volatility surface"""
+        """Plot 3D volatility surface (requires matplotlib, extra ``[plot]``)"""
+        import matplotlib.pyplot as plt
+
         if not self.surface_fitted:
             self.build_surface()
 

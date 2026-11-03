@@ -12,9 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # setuptools_scm derives the version from the triggering tag.
           fetch-depth: 0
-          fetch-tags: true
 
       - uses: actions/setup-python@v5
         with:
@@ -28,7 +26,13 @@ jobs:
       - name: Verify version matches tag
         run: |
           python -m pip install dist/*.whl
-          python -c "import derivflow; print('built version:', derivflow.__version__)"
+          built=$(python -c "import derivflow; print(derivflow.__version__)")
+          tag="${GITHUB_REF_NAME#v}"
+          echo "built version: $built, tag: $tag"
+          if [ "$built" != "$tag" ]; then
+            echo "Version in pyproject.toml ($built) does not match tag ($tag)."
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         with:

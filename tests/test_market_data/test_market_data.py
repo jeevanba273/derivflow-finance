@@ -21,7 +21,7 @@ def test_is_market_open_returns_status():
     assert isinstance(status, str) and status
 
 
-@pytest.mark.integration
+@pytest.mark.network
 def test_get_current_price_live():
     md = AdvancedMarketData()
     try:
@@ -31,7 +31,7 @@ def test_get_current_price_live():
     assert price > 0
 
 
-@pytest.mark.integration
+@pytest.mark.network
 def test_historical_volatility_live():
     md = AdvancedMarketData()
     try:

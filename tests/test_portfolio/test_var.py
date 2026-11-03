@@ -80,3 +80,52 @@ def test_invalid_correlation_is_rejected():
         pa.set_correlation(["A", "B"], [[1.0, 1.5], [1.5, 1.0]])
     with pytest.raises(ValueError):
         pa.set_correlation(["A", "B"], [[1.0, 0.2], [0.3, 1.0]])
+
+
+# --- Monte Carlo VaR -----------------------------------------------------------
+# Simulated log-returns over h trading days are N(-s^2/2, s^2), s = sigma sqrt(h/252)
+# (zero expected price change), with one shared draw per underlying.
+
+
+def test_monte_carlo_flat_book_has_zero_var():
+    pa = _stock_book(("X", 100, 100.0, 0.2), ("X", -100, 100.0, 0.2))
+    var, es = pa.calculate_var_monte_carlo(0.99, 1, num_sims=5_000, random_seed=1)
+    assert var == pytest.approx(0.0, abs=1e-9)
+    assert es == pytest.approx(0.0, abs=1e-9)
+
+
+def test_monte_carlo_single_stock_matches_lognormal_quantile():
+    pa = _stock_book(("X", 100, 100.0, 0.20))
+    var, _ = pa.calculate_var_monte_carlo(0.99, 10, num_sims=400_000, random_seed=2)
+    s = 0.20 * np.sqrt(10 / 252)
+    exact = -10_000 * (np.exp(-0.5 * s * s + s * norm.ppf(0.01)) - 1.0)
+    assert var == pytest.approx(exact, rel=1e-2)
+
+
+def test_monte_carlo_long_call_var_uses_full_revaluation():
+    from derivflow.core.pricing_engine import black_scholes_price
+
+    pa = PortfolioRiskAnalyzer(risk_free_rate=0.03)
+    pa.add_option_position("X", 1, 100.0, 100.0, 0.25, "call", 0.30)
+    h = 5
+    var, _ = pa.calculate_var_monte_carlo(0.99, h, num_sims=400_000, random_seed=3)
+    s = 0.30 * np.sqrt(h / 252)
+    s_low = 100.0 * np.exp(-0.5 * s * s + s * norm.ppf(0.01))  # call value is increasing in S
+    v0 = black_scholes_price(100.0, 100.0, 0.25, 0.03, 0.30)
+    v_low = black_scholes_price(s_low, 100.0, 0.25 - h / 252, 0.03, 0.30)
+    assert var == pytest.approx(100 * (v0 - v_low), rel=1e-2)
+
+
+def test_monte_carlo_matches_parametric_for_a_linear_book():
+    pa = _stock_book(("A", 100, 50.0, 0.30), ("B", 40, 200.0, 0.20))
+    pa.set_correlation(["A", "B"], [[1.0, 0.6], [0.6, 1.0]])
+    param, _ = pa.calculate_var_parametric(0.99, 1)
+    mc, _ = pa.calculate_var_monte_carlo(0.99, 1, num_sims=400_000, random_seed=4)
+    assert mc == pytest.approx(param, rel=2e-2)
+
+
+def test_monte_carlo_var_is_reproducible_with_seed():
+    pa = _stock_book(("X", 100, 100.0, 0.2))
+    a = pa.calculate_var_monte_carlo(0.95, 1, num_sims=2_000, random_seed=7)
+    b = pa.calculate_var_monte_carlo(0.95, 1, num_sims=2_000, random_seed=7)
+    assert a == b

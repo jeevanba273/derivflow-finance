@@ -401,91 +401,82 @@ class PortfolioRiskAnalyzer:
         expected_shortfall = stats.norm.pdf(z) / (1.0 - confidence_level) * sigma
         return float(var), float(expected_shortfall)
 
+    def simulate_pnl(
+        self, time_horizon: int = 1, num_sims: int = 10_000, random_seed: int | None = None
+    ) -> np.ndarray:
+        """
+        Simulated portfolio P&L over ``time_horizon`` trading days, by full
+        revaluation.
+
+        One correlated draw per underlying (covariance as in
+        :meth:`calculate_var_parametric`); log-returns are N(-s^2/2, s^2) so
+        the expected price change is zero over the short horizon. Stocks are
+        revalued linearly; options are repriced with Black-Scholes-Merton at
+        the simulated spot, the same implied volatility and time to expiry
+        reduced by h / 252 years (an option that expires within the horizon is
+        valued at its intrinsic value).
+        """
+        from ..core.pricing_engine import black_scholes_price
+
+        if num_sims < 2:
+            raise ValueError("num_sims must be at least 2")
+        symbols = self.underlyings()
+        if not symbols:
+            return np.zeros(num_sims)
+        rng = np.random.default_rng(random_seed)
+        cov = self._daily_covariance(symbols) * time_horizon
+        # Symmetric square root handles singular (e.g. perfectly correlated) matrices.
+        eigval, eigvec = np.linalg.eigh(cov)
+        root = eigvec * np.sqrt(np.clip(eigval, 0.0, None))
+        log_ret = rng.standard_normal((num_sims, len(symbols))) @ root.T - 0.5 * np.diag(cov)
+        spot_paths = {
+            sym: self._underlying_spot(sym) * np.exp(log_ret[:, n]) for n, sym in enumerate(symbols)
+        }
+        dt = time_horizon / TRADING_DAYS_PER_YEAR
+        pnl = np.zeros(num_sims)
+        for p in self.positions:
+            new_spot = spot_paths[p.symbol]
+            if p.position_type == "stock":
+                pnl += p.quantity * (new_spot - p.current_price)
+            elif p.position_type == "option":
+                q = p.dividend_yield or 0.0
+                r = p.risk_free_rate if p.risk_free_rate is not None else self.risk_free_rate
+                v0 = black_scholes_price(
+                    p.current_price, p.strike, p.expiry, r, p.volatility, p.option_type, q
+                )
+                v1 = black_scholes_price(
+                    new_spot, p.strike, max(p.expiry - dt, 0.0), r, p.volatility, p.option_type, q
+                )
+                pnl += p.quantity * self.contract_multiplier * (v1 - v0)
+        return pnl
+
     def calculate_var_monte_carlo(
-        self, confidence_level: float = 0.95, time_horizon: int = 1, num_sims: int = 10000
+        self,
+        confidence_level: float = 0.95,
+        time_horizon: int = 1,
+        num_sims: int = 10_000,
+        random_seed: int | None = None,
     ) -> tuple[float, float]:
         """
-        Calculate VaR using Monte Carlo simulation
+        Monte Carlo VaR and expected shortfall by full revaluation.
 
-        Parameters:
-        -----------
-        confidence_level : float
-            Confidence level
-        time_horizon : int
-            Time horizon in days
-        num_sims : int
-            Number of Monte Carlo simulations
+        Simulates the P&L with :meth:`simulate_pnl` and reads VaR and ES off
+        the sample with :func:`derivflow.portfolio.risk_measures.value_at_risk`
+        and :func:`~derivflow.portfolio.risk_measures.expected_shortfall`.
+        The estimates carry sampling error that shrinks like 1/sqrt(num_sims).
 
         Returns:
         --------
         Tuple[float, float]
-            (VaR, Expected Shortfall)
+            (VaR, expected shortfall) as positive loss amounts.
         """
-        current_portfolio_value = self.calculate_portfolio_value()
+        from .risk_measures import expected_shortfall, value_at_risk
 
-        # Generate random scenarios
-        portfolio_values = []
-
-        for _ in range(num_sims):
-            simulated_value = 0.0
-
-            for position in self.positions:
-                if position.position_type == "stock":
-                    # Simulate stock price change
-                    if position.volatility:
-                        dt = time_horizon / 252  # Convert days to years
-                        random_return = np.random.normal(
-                            (self.risk_free_rate - 0.5 * position.volatility**2) * dt,
-                            position.volatility * np.sqrt(dt),
-                        )
-                        new_price = position.current_price * np.exp(random_return)
-                        position_value = position.quantity * new_price
-                    else:
-                        position_value = position.quantity * position.current_price
-
-                elif position.position_type == "option":
-                    # Simulate underlying price change
-                    if position.volatility:
-                        dt = time_horizon / 252
-                        random_return = np.random.normal(
-                            (self.risk_free_rate - 0.5 * position.volatility**2) * dt,
-                            position.volatility * np.sqrt(dt),
-                        )
-                        new_underlying_price = position.current_price * np.exp(random_return)
-                        new_expiry = max(position.expiry - dt, 0.001)  # Time decay
-
-                        # Recalculate option price
-                        new_option_price = price_european_option(
-                            new_underlying_price,
-                            position.strike,
-                            new_expiry,
-                            position.risk_free_rate,
-                            position.volatility,
-                            position.option_type,
-                            q=position.dividend_yield or 0.0,
-                        )
-                        position_value = position.quantity * new_option_price * 100
-                    else:
-                        position_value = 0.0
-                else:
-                    position_value = 0.0
-
-                simulated_value += position_value
-
-            portfolio_values.append(simulated_value)
-
-        # Calculate P&L distribution
-        pnl_distribution = np.array(portfolio_values) - current_portfolio_value
-
-        # Calculate VaR and Expected Shortfall
-        var_percentile = (1 - confidence_level) * 100
-        var = -np.percentile(pnl_distribution, var_percentile)
-
-        # Expected Shortfall (average of losses beyond VaR)
-        tail_losses = pnl_distribution[pnl_distribution <= -var]
-        expected_shortfall = -np.mean(tail_losses) if len(tail_losses) > 0 else var
-
-        return var, expected_shortfall
+        _check_var_inputs(confidence_level, time_horizon)
+        pnl = self.simulate_pnl(time_horizon, num_sims, random_seed)
+        if not np.any(pnl):
+            return 0.0, 0.0
+        return value_at_risk(pnl, confidence_level), expected_shortfall(pnl, confidence_level)
 
     def scenario_analysis(
         self, scenarios: dict[str, dict[str, float]]

@@ -376,7 +376,7 @@ def implied_vol_from_chain(
 
 
 def _mid_price(last_price, bid, ask):
-    """Best available price: mid of bid/ask, else last price."""
+    """Mid of bid and ask when both are positive, else the last price."""
     try:
         if bid and ask and bid > 0 and ask > 0:
             return 0.5 * (bid + ask)

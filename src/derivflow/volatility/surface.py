@@ -361,7 +361,7 @@ class VolatilitySurface:
         else:
             min_strike, max_strike = strike_range
 
-        # Generate smile
+        # Sample the smile
         strikes = np.linspace(min_strike, max_strike, num_points)
         volatilities = np.array([self.interpolate(k, expiry) for k in strikes])
 
@@ -483,7 +483,7 @@ def create_sample_surface() -> VolatilitySurface:
     """Create sample volatility surface for testing"""
     surface = VolatilitySurface()
 
-    # Generate realistic sample data
+    # Illustrative quotes: skewed smile, upward term structure, small noise
     rng = np.random.default_rng(42)
 
     spot = 100
@@ -492,7 +492,6 @@ def create_sample_surface() -> VolatilitySurface:
 
     for expiry in expiries:
         for strike in strikes:
-            # Generate realistic vol smile (higher vol for OTM options)
             moneyness = np.log(strike / spot)
             base_vol = 0.2 + 0.1 * expiry  # Positive term structure
             skew = -0.1 * moneyness  # Negative skew

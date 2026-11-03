@@ -290,7 +290,7 @@ class BarrierOptions:
         dt = T / num_steps
         discount_factor = np.exp(-r * T)
 
-        # Generate stock price paths (same shape/order as before for reproducibility)
+        # Simulate exact GBM paths on the monitoring dates
         Z = self.rng.standard_normal((num_sims, num_steps))
 
         # Vectorized exact-GBM via cumulative sum of log-returns

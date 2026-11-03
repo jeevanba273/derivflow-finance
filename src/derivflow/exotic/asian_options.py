@@ -227,7 +227,7 @@ class AsianOptions:
         """
         check_live_inputs(S, K, T, sigma)
         check_option_type(option_type)
-        # Generate paths
+        # Simulate paths
         _final_prices, arithmetic_avg, geometric_avg = self._generate_asian_paths(
             S, T, r, sigma, num_steps
         )
@@ -329,7 +329,7 @@ class AsianOptions:
         fixings (used to check the closed form)."""
         check_live_inputs(S, K, T, sigma)
         check_option_type(option_type)
-        # Generate paths
+        # Simulate paths
         _final_prices, _arithmetic_avg, geometric_avg = self._generate_asian_paths(
             S, T, r, sigma, num_steps
         )

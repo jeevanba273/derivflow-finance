@@ -1,6 +1,6 @@
 """Implied volatility: round trips across moneyness and short expiries.
 
-Prices are generated with an independent Black-Scholes-Merton oracle (the
+Prices come from an independent Black-Scholes-Merton oracle (the
 ``bs_ref`` fixture). Where the option's vega is tiny the volatility is poorly
 determined by the price, so the volatility round trip is only asserted when
 vega > 1e-6 * S; the price round trip is asserted for every solved case.

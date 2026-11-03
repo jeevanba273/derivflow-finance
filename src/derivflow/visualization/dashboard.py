@@ -84,7 +84,7 @@ class DerivativesDashboard:
         if spot_range is None:
             spot_range = (K * 0.7, K * 1.3)
 
-        # Generate spot price range
+        # Spot grid
         spot_prices = np.linspace(spot_range[0], spot_range[1], 100)
 
         # Calculate payoffs
@@ -204,7 +204,7 @@ class DerivativesDashboard:
         go.Figure
             Price sensitivity chart
         """
-        # Generate parameter range
+        # Parameter grid
         if param == "spot":
             param_values = np.linspace(S * (1 - param_range), S * (1 + param_range), 50)
             param_label = "Spot Price ($)"
@@ -329,7 +329,7 @@ class DerivativesDashboard:
             ],
         )
 
-        # Generate spot range for Greeks calculation
+        # Spot grid for the Greeks
         spot_range = np.linspace(S * 0.8, S * 1.2, 50)
 
         # Calculate Greeks for each spot price
@@ -583,7 +583,7 @@ class DerivativesDashboard:
                 "black_scholes", S, K, T, r, sigma, option_type
             )
 
-        # Generate spot range
+        # Spot grid
         spot_range = np.linspace(S * 0.7, S * 1.3, 100)
 
         # Calculate P&L for different scenarios

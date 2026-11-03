@@ -1,7 +1,7 @@
 API reference
 =============
 
-Generated from the docstrings. Units and conventions are described in
+Built from the docstrings. Units and conventions are described in
 :doc:`../methods` and on each module page.
 
 .. toctree::

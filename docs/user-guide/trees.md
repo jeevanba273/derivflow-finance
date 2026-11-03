@@ -58,6 +58,6 @@ q=0.08: American 11.381408, European 9.910723
 ```
 
 The backward induction is vectorised over the nodes of each time step. A 2000-step American
-price takes about 28 ms on the benchmark machine, against about 15 ms for QuantLib's
+price takes about 29 ms on the benchmark machine, against about 15 ms for QuantLib's
 C++ tree; see [benchmarks](../benchmarks.md). Against QuantLib's finite-difference engine the
 2000-step tree differs by at most 6e-4 on the five validation cases.

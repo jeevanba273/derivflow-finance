@@ -9,7 +9,7 @@ from derivflow import black_scholes_price, implied_volatility, implied_volatilit
 
 S, T, r, q = 100.0, 0.5, 0.03, 0.01
 
-# A smile generated from a known volatility function, then inverted.
+# A smile priced from a known volatility function, then inverted.
 strikes = np.array([70.0, 85.0, 100.0, 115.0, 130.0])
 true_vols = 0.20 + 0.4 * np.log(strikes / S) ** 2 - 0.05 * np.log(strikes / S)
 prices = np.array(

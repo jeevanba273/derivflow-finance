@@ -324,12 +324,9 @@ class BarrierOptions:
         std_error = np.std(discounted_payoffs) / np.sqrt(num_sims)
         survival_probability = np.mean(~barrier_hit)
 
-        return BarrierOptionResult(
-            price=price,
-            probability_survival=survival_probability
-            if "out" in barrier_type.lower()
-            else 1 - survival_probability,
-        )
+        # Same quantity as the analytical result: the probability that the
+        # barrier is not touched, for knock-in and knock-out options alike.
+        return BarrierOptionResult(price=price, probability_survival=survival_probability)
 
     def _handle_expiry(
         self, S: float, K: float, H: float, barrier_type: str, option_type: str

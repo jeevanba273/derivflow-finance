@@ -129,3 +129,14 @@ def test_survival_probability_matches_monte_carlo(H):
     p_formula = barrier.price(S, 100.0, H_eff, T, r, sigma, bt, "call").probability_survival
     assert abs(p_mc - p_formula) < 4 * se + 2e-3
 
+
+
+def test_monte_carlo_survival_probability_is_the_same_quantity_for_in_and_out():
+    """probability_survival is P(barrier not touched) for knock-in and knock-out alike."""
+    out = BarrierOptions(random_seed=11).monte_carlo_price(
+        100, 100, 90, 1.0, 0.05, 0.2, "down_and_out", "call", num_sims=20_000, num_steps=50
+    )
+    knock_in = BarrierOptions(random_seed=11).monte_carlo_price(
+        100, 100, 90, 1.0, 0.05, 0.2, "down_and_in", "call", num_sims=20_000, num_steps=50
+    )
+    assert knock_in.probability_survival == pytest.approx(out.probability_survival, abs=1e-12)

@@ -167,12 +167,12 @@ a user guide per area, the API reference, methods and references, validation and
 
 ## Further reading
 
-- [Hedging a portfolio with options](https://financefluentblog.com/blog/hedging-portfolio/)
-- [Delta-neutral options strategies](https://financefluentblog.com/blog/neutral-options/)
-- [Income-oriented option spreads](https://financefluentblog.com/blog/income-oriented-spreads/)
-- [Monte Carlo Value-at-Risk](https://financefluentblog.com/blog/monte-carlo-var/)
-- [Risk management](https://financefluentblog.com/blog/risk-management/)
-- [Portfolio construction](https://financefluentblog.com/blog/portfolio-construction/)
+- [Hedging a Portfolio with Index Options](https://financefluentblog.com/blog/hedging-portfolio/)
+- [Butterfly Option Structures Explained](https://financefluentblog.com/blog/neutral-options/)
+- [Credit Spreads and Iron Condors](https://financefluentblog.com/blog/income-oriented-spreads/)
+- [Monte Carlo Value-at-Risk, Step by Step](https://financefluentblog.com/blog/monte-carlo-var/)
+- [Risk Management Essentials](https://financefluentblog.com/blog/risk-management/)
+- [Portfolio Construction: Theory and Process](https://financefluentblog.com/blog/portfolio-construction/)
 
 ## Contributing, citing, licence
 

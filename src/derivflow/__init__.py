@@ -54,6 +54,14 @@ from .portfolio.portfolio_risk import (
     ScenarioResult,
     create_sample_portfolio,
 )
+from .portfolio.risk_measures import (
+    expected_shortfall,
+    normal_es,
+    normal_var,
+    student_t_es,
+    student_t_var,
+    value_at_risk,
+)
 from .volatility.implied_vol import (
     implied_vol_from_chain,
     implied_volatility,
@@ -131,11 +139,17 @@ __all__ = [
     "compare_asian_types",
     "create_sample_portfolio",
     "create_sample_surface",
+    "expected_shortfall",
     "format_greeks_report",
     "get_package_info",
     "implied_vol_from_chain",
     "implied_volatility",
     "implied_volatility_vectorized",
+    "normal_es",
+    "normal_var",
     "price_asian_option",
     "price_european_option",
+    "student_t_es",
+    "student_t_var",
+    "value_at_risk",
 ]

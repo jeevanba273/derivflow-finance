@@ -480,7 +480,7 @@ def create_sample_surface() -> VolatilitySurface:
     surface = VolatilitySurface()
 
     # Generate realistic sample data
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
 
     spot = 100
     strikes = np.array([80, 85, 90, 95, 100, 105, 110, 115, 120])
@@ -493,7 +493,7 @@ def create_sample_surface() -> VolatilitySurface:
             base_vol = 0.2 + 0.1 * expiry  # Positive term structure
             skew = -0.1 * moneyness  # Negative skew
             smile = 0.05 * moneyness**2  # Smile curvature
-            noise = np.random.normal(0, 0.01)  # Small noise
+            noise = rng.normal(0, 0.01)  # Small noise
 
             vol = base_vol + skew + smile + noise
             vol = max(vol, 0.05)  # Minimum vol

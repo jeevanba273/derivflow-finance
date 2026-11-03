@@ -66,9 +66,11 @@ class AsianOptions:
         random_seed : int, optional
             Random seed for reproducible results
         """
-        self.num_sims = num_sims
-        if random_seed is not None:
-            np.random.seed(random_seed)
+        if num_sims < 2:
+            raise ValueError("num_sims must be at least 2")
+        self.num_sims = int(num_sims)
+        # Private generator: NumPy's global random state is never touched.
+        self.rng = np.random.default_rng(random_seed)
 
     def price_geometric_asian_analytical(
         self,
@@ -167,7 +169,7 @@ class AsianOptions:
             (final_prices, arithmetic_averages, geometric_averages)
         """
         dt = T / num_steps
-        Z = np.random.standard_normal((self.num_sims, num_steps))
+        Z = self.rng.standard_normal((self.num_sims, num_steps))
         increments = (r - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * Z
         log_paths = np.log(S) + np.cumsum(increments, axis=1)  # columns t_1..t_n
         paths = np.exp(log_paths)
@@ -261,7 +263,7 @@ class AsianOptions:
                 )
 
                 price = np.mean(controlled_payoffs)
-                std_error = np.std(controlled_payoffs) / np.sqrt(self.num_sims)
+                std_error = np.std(controlled_payoffs, ddof=1) / np.sqrt(self.num_sims)
 
                 # Variance reduction ratio
                 original_variance = np.var(discounted_arithmetic)
@@ -279,7 +281,7 @@ class AsianOptions:
             else:
                 # Fallback to standard MC
                 price = np.mean(discounted_arithmetic)
-                std_error = np.std(discounted_arithmetic) / np.sqrt(self.num_sims)
+                std_error = np.std(discounted_arithmetic, ddof=1) / np.sqrt(self.num_sims)
                 convergence_info = {
                     "control_variate_used": False,
                     "reason": "Zero variance in control",
@@ -287,7 +289,7 @@ class AsianOptions:
         else:
             # Standard Monte Carlo without control variate
             price = np.mean(discounted_arithmetic)
-            std_error = np.std(discounted_arithmetic) / np.sqrt(self.num_sims)
+            std_error = np.std(discounted_arithmetic, ddof=1) / np.sqrt(self.num_sims)
             convergence_info = {"control_variate_used": False}
 
         # Calculate confidence interval
@@ -335,7 +337,7 @@ class AsianOptions:
 
         # Calculate statistics
         price = np.mean(discounted_payoffs)
-        std_error = np.std(discounted_payoffs) / np.sqrt(self.num_sims)
+        std_error = np.std(discounted_payoffs, ddof=1) / np.sqrt(self.num_sims)
         confidence_interval = (price - 1.96 * std_error, price + 1.96 * std_error)
 
         return AsianOptionResult(
@@ -524,46 +526,38 @@ class AsianOptions:
         Dict[str, float]
             Sensitivity measures
         """
-        # Base case
-        base_result = self.price(S, K, T, r, sigma, option_type, asian_type)
-        base_price = base_result.price
+        # Common random numbers: every revaluation below reuses the same draws,
+        # so Monte Carlo noise largely cancels in the differences.
+        main_rng = self.rng
+        seed = int(main_rng.integers(2**63 - 1))
 
-        if param == "spot":
-            # Delta
-            up_result = self.price(S * (1 + bump_size), K, T, r, sigma, option_type, asian_type)
-            down_result = self.price(S * (1 - bump_size), K, T, r, sigma, option_type, asian_type)
+        def value(S_, K_, T_, r_, sigma_):
+            self.rng = np.random.default_rng(seed)
+            return self.price(S_, K_, T_, r_, sigma_, option_type, asian_type).price
 
-            delta = (up_result.price - down_result.price) / (2 * S * bump_size)
-            gamma = (up_result.price - 2 * base_price + down_result.price) / (S * bump_size) ** 2
-
-            return {"delta": delta, "gamma": gamma}
-
-        elif param == "volatility":
-            # Vega
-            up_result = self.price(S, K, T, r, sigma * (1 + bump_size), option_type, asian_type)
-            down_result = self.price(S, K, T, r, sigma * (1 - bump_size), option_type, asian_type)
-
-            vega = (up_result.price - down_result.price) / (2 * sigma * bump_size)
-            return {"vega": vega}
-
-        elif param == "rate":
-            # Rho
-            up_result = self.price(S, K, T, r + bump_size, sigma, option_type, asian_type)
-            down_result = self.price(S, K, T, r - bump_size, sigma, option_type, asian_type)
-
-            rho = (up_result.price - down_result.price) / (2 * bump_size)
-            return {"rho": rho}
-
-        elif param == "time":
-            # Theta
-            up_result = self.price(S, K, T + bump_size, r, sigma, option_type, asian_type)
-            down_result = self.price(S, K, T - bump_size, r, sigma, option_type, asian_type)
-
-            theta = -(up_result.price - down_result.price) / (2 * bump_size)
-            return {"theta": theta}
-
-        else:
+        try:
+            base_price = value(S, K, T, r, sigma)
+            if param == "spot":
+                up = value(S * (1 + bump_size), K, T, r, sigma)
+                down = value(S * (1 - bump_size), K, T, r, sigma)
+                delta = (up - down) / (2 * S * bump_size)
+                gamma = (up - 2 * base_price + down) / (S * bump_size) ** 2
+                return {"delta": delta, "gamma": gamma}
+            if param == "volatility":
+                up = value(S, K, T, r, sigma * (1 + bump_size))
+                down = value(S, K, T, r, sigma * (1 - bump_size))
+                return {"vega": (up - down) / (2 * sigma * bump_size)}
+            if param == "rate":
+                up = value(S, K, T, r + bump_size, sigma)
+                down = value(S, K, T, r - bump_size, sigma)
+                return {"rho": (up - down) / (2 * bump_size)}
+            if param == "time":
+                up = value(S, K, T + bump_size, r, sigma)
+                down = value(S, K, T - bump_size, r, sigma)
+                return {"theta": -(up - down) / (2 * bump_size)}
             raise ValueError(f"Unknown parameter: {param}")
+        finally:
+            self.rng = main_rng
 
 
 # Convenience functions

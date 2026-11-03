@@ -37,6 +37,7 @@ class BarrierOptionResult:
     vega: float | None = None
     barrier_delta: float | None = None  # Sensitivity to barrier level
     probability_survival: float | None = None  # Probability of not hitting barrier
+    std_error: float | None = None  # Monte Carlo standard error (None for closed form)
 
 
 class BarrierOptions:
@@ -57,8 +58,8 @@ class BarrierOptions:
         random_seed : int, optional
             Random seed for reproducible Monte Carlo results
         """
-        if random_seed is not None:
-            np.random.seed(random_seed)
+        # Private generator: NumPy's global random state is never touched.
+        self.rng = np.random.default_rng(random_seed)
 
     def _validate_barrier_parameters(
         self, S: float, K: float, H: float, barrier_type: str, option_type: str
@@ -286,7 +287,7 @@ class BarrierOptions:
         discount_factor = np.exp(-r * T)
 
         # Generate stock price paths (same shape/order as before for reproducibility)
-        Z = np.random.standard_normal((num_sims, num_steps))
+        Z = self.rng.standard_normal((num_sims, num_steps))
 
         # Vectorized exact-GBM via cumulative sum of log-returns
         increments = (r - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * Z
@@ -321,12 +322,16 @@ class BarrierOptions:
         # Calculate price and statistics
         discounted_payoffs = payoffs * discount_factor
         price = np.mean(discounted_payoffs)
-        std_error = np.std(discounted_payoffs) / np.sqrt(num_sims)
+        std_error = np.std(discounted_payoffs, ddof=1) / np.sqrt(num_sims)
         survival_probability = np.mean(~barrier_hit)
 
         # Same quantity as the analytical result: the probability that the
         # barrier is not touched, for knock-in and knock-out options alike.
-        return BarrierOptionResult(price=price, probability_survival=survival_probability)
+        return BarrierOptionResult(
+            price=float(price),
+            probability_survival=float(survival_probability),
+            std_error=float(std_error),
+        )
 
     def _handle_expiry(
         self, S: float, K: float, H: float, barrier_type: str, option_type: str

@@ -8,6 +8,7 @@ Supports multiple pricing methodologies with validation.
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -57,6 +58,18 @@ def black_scholes_price(
     )
     out = np.where(live, np.maximum(price, 0.0), intrinsic)
     return float(out) if out.ndim == 0 else out
+
+
+def _validate_market_inputs(S: float, K: float, T: float, sigma: float) -> None:
+    """Raise ValueError for inputs outside the domain of the pricing formulas."""
+    if not (np.isfinite(S) and S > 0):
+        raise ValueError(f"spot S must be positive, got {S}")
+    if not (np.isfinite(K) and K > 0):
+        raise ValueError(f"strike K must be positive, got {K}")
+    if not (np.isfinite(T) and T > 0):
+        raise ValueError(f"time to expiry T must be positive (years), got {T}")
+    if not (np.isfinite(sigma) and sigma > 0):
+        raise ValueError(f"volatility sigma must be positive (annualised), got {sigma}")
 
 
 class PricingMethod(ABC):
@@ -242,64 +255,65 @@ class BinomialTree(PricingMethod):
 
 class MonteCarloEngine(PricingMethod):
     """
-    Monte Carlo pricing engine with variance reduction techniques
+    Monte Carlo pricer for European payoffs under Black-Scholes-Merton dynamics.
 
-    Provides flexible framework for path-dependent derivatives.
-    Includes antithetic variates and control variates.
+    Terminal prices are sampled exactly, S_T = S exp((r - q - sigma^2/2) T +
+    sigma sqrt(T) Z), so there is no time-discretisation error. Optional
+    variance reduction:
+
+    - antithetic variates: each normal draw Z is paired with -Z and the
+      estimator averages the pair (Glasserman, Monte Carlo Methods in
+      Financial Engineering, 2003, section 4.2);
+    - control variate: the discounted terminal price, whose expectation
+      S e^{-qT} is known, with the regression coefficient estimated from the
+      same sample (Glasserman, section 4.1).
+
+    Random numbers come from a private ``numpy.random.Generator``; NumPy's
+    global random state is never touched.
     """
 
-    def __init__(self, num_sims: int = 100000, random_seed: int | None = None):
+    def __init__(
+        self,
+        num_sims: int = 100000,
+        random_seed: int | None = None,
+        antithetic: bool = False,
+        control_variate: bool = False,
+    ):
         """
-        Initialize Monte Carlo engine
-
         Parameters:
         -----------
         num_sims : int
-            Number of simulation paths
+            Number of simulated payoffs (with antithetic variates: number of
+            draws, i.e. num_sims / 2 antithetic pairs).
         random_seed : int, optional
-            Random seed for reproducible results
+            Seed for the engine's random number generator.
+        antithetic, control_variate : bool
+            Default variance-reduction settings for :meth:`price`.
         """
-        self.num_sims = num_sims
-        if random_seed is not None:
-            np.random.seed(random_seed)
+        if num_sims < 2:
+            raise ValueError("num_sims must be at least 2")
+        self.num_sims = int(num_sims)
+        self.antithetic = antithetic
+        self.control_variate = control_variate
+        self.rng = np.random.default_rng(random_seed)
 
     def generate_gbm_paths(
-        self, S0: float, T: float, r: float, sigma: float, num_steps: int = 252
+        self, S0: float, T: float, r: float, sigma: float, num_steps: int = 252, q: float = 0.0
     ) -> np.ndarray:
         """
-        Generate Geometric Brownian Motion paths
-
-        Parameters:
-        -----------
-        S0 : float
-            Initial stock price
-        T : float
-            Time horizon
-        r : float
-            Risk-free rate
-        sigma : float
-            Volatility
-        num_steps : int
-            Number of time steps
+        Simulate GBM paths on an equally spaced grid with the exact log-normal step.
 
         Returns:
         --------
         np.ndarray
-            Array of shape (num_sims, num_steps + 1) with price paths
+            Shape (num_sims, num_steps + 1); column 0 is S0.
         """
         dt = T / num_steps
-
-        # Generate random shocks (same shape/order as before for seed reproducibility)
-        Z = np.random.standard_normal((self.num_sims, num_steps))
-
-        # Vectorized exact-GBM: cumulative sum of log-returns, then exponentiate.
-        # Mathematically identical to the per-step recurrence S_t = S_{t-1}*exp(...).
-        increments = (r - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * Z
+        Z = self.rng.standard_normal((self.num_sims, num_steps))
+        increments = (r - q - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * Z
         log_paths = np.zeros((self.num_sims, num_steps + 1))
         np.cumsum(increments, axis=1, out=log_paths[:, 1:])
-        paths = S0 * np.exp(log_paths)
-
-        return paths
+        return S0 * np.exp(log_paths)
 
     def price(
         self,
@@ -310,61 +324,83 @@ class MonteCarloEngine(PricingMethod):
         sigma: float,
         option_type: str = "call",
         payoff_func: Callable | None = None,
-    ) -> dict[str, float]:
+        *,
+        q: float = 0.0,
+        antithetic: bool | None = None,
+        control_variate: bool | None = None,
+    ) -> dict[str, Any]:
         """
-        Price option using Monte Carlo simulation
+        Monte Carlo price of a European option.
 
         Parameters:
         -----------
-        S : float
-            Current spot price
-        K : float
-            Strike price
+        S, K : float
+            Spot and strike.
         T : float
-            Time to expiry
-        r : float
-            Risk-free rate
+            Time to expiry in years.
+        r, q : float
+            Continuously compounded risk-free rate and dividend yield.
         sigma : float
-            Volatility
+            Annualised volatility.
         option_type : str
-            'call' or 'put'
+            'call' or 'put' (ignored when ``payoff_func`` is given).
         payoff_func : callable, optional
-            Custom payoff function for exotic options
+            ``payoff_func(S_T, K)`` returning payoffs for an array of terminal
+            prices.
+        antithetic, control_variate : bool, optional
+            Override the engine defaults.
 
         Returns:
         --------
-        Dict[str, float]
-            Dictionary with 'price', 'std_error', 'confidence_interval'
+        dict
+            'price', 'std_error' (sample standard deviation / sqrt(number of
+            independent samples), ddof=1), 'confidence_interval' (95%, price
+            +- 1.96 standard errors), 'num_simulations' and 'method'.
         """
-        # Generate final stock prices
-        final_prices = S * np.exp(
-            (r - 0.5 * sigma**2) * T + sigma * np.sqrt(T) * np.random.standard_normal(self.num_sims)
-        )
-
-        # Calculate payoffs
-        if payoff_func:
-            payoffs = payoff_func(final_prices, K)
-        else:
-            if option_type.lower() == "call":
-                payoffs = np.maximum(final_prices - K, 0)
-            elif option_type.lower() == "put":
-                payoffs = np.maximum(K - final_prices, 0)
-            else:
+        _validate_market_inputs(S, K, T, sigma)
+        antithetic = self.antithetic if antithetic is None else antithetic
+        control_variate = self.control_variate if control_variate is None else control_variate
+        if payoff_func is None:
+            ot = option_type.lower()
+            if ot not in ("call", "put"):
                 raise ValueError("option_type must be 'call' or 'put'")
+            sign = 1.0 if ot == "call" else -1.0
 
-        # Discount payoffs
-        discounted_payoffs = payoffs * np.exp(-r * T)
+            def payoff_func(s_t: np.ndarray, strike: float) -> np.ndarray:
+                return np.maximum(sign * (s_t - strike), 0.0)
 
-        # Calculate statistics
-        price = np.mean(discounted_payoffs)
-        std_error = np.std(discounted_payoffs) / np.sqrt(self.num_sims)
-        confidence_interval = (price - 1.96 * std_error, price + 1.96 * std_error)
+        n = self.num_sims
+        n_draws = n // 2 if antithetic else n
+        Z = self.rng.standard_normal(n_draws)
+        drift = (r - q - 0.5 * sigma**2) * T
+        vol = sigma * np.sqrt(T)
+        disc = np.exp(-r * T)
 
+        def discounted(z: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+            s_t = S * np.exp(drift + vol * z)
+            return disc * payoff_func(s_t, K), disc * s_t
+
+        y, x = discounted(Z)
+        if antithetic:
+            y2, x2 = discounted(-Z)
+            y, x = 0.5 * (y + y2), 0.5 * (x + x2)  # one sample per antithetic pair
+        if control_variate:
+            # E[e^{-rT} S_T] = S e^{-qT}
+            cov = np.cov(y, x, ddof=1)
+            beta = cov[0, 1] / cov[1, 1] if cov[1, 1] > 0 else 0.0
+            y = y - beta * (x - S * np.exp(-q * T))
+
+        price = float(y.mean())
+        std_error = float(y.std(ddof=1) / np.sqrt(y.size))
+        method = "+".join(
+            m for m, on in (("antithetic", antithetic), ("control_variate", control_variate)) if on
+        )
         return {
             "price": price,
             "std_error": std_error,
-            "confidence_interval": confidence_interval,
-            "num_simulations": self.num_sims,
+            "confidence_interval": (price - 1.96 * std_error, price + 1.96 * std_error),
+            "num_simulations": n_draws * (2 if antithetic else 1),
+            "method": method or "plain",
         }
 
 

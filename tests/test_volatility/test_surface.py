@@ -108,3 +108,44 @@ def test_building_a_surface_prints_nothing(capsys):
     surface.build_surface(method="svi")
     surface.load_market_data([{"strike": 100, "expiry": 2.0, "volatility": 0.2}])
     assert capsys.readouterr().out == ""
+
+
+def _check(vols, strikes=None):
+    import numpy as np
+
+    from derivflow.volatility.surface import VolatilitySurface
+
+    strikes = np.linspace(80, 120, 9) if strikes is None else np.asarray(strikes, float)
+    return VolatilitySurface().check_arbitrage(
+        strikes, np.asarray(vols, float), expiry=1.0, spot=100.0, r=0.05
+    )
+
+
+def test_flat_smile_is_arbitrage_free():
+    res = _check([0.2] * 9)
+    assert res["arbitrage_free"]
+    assert not res["butterfly_arbitrage"] and not res["vertical_spread_arbitrage"]
+
+
+def test_mild_frown_is_arbitrage_free():
+    """A concave smile in volatility can still give convex call prices; the
+    check works on prices, not on the curvature of volatility."""
+    import numpy as np
+
+    k = np.log(np.linspace(80, 120, 9) / 100.0)
+    res = _check(0.2 - 0.05 * k**2)
+    assert res["arbitrage_free"]
+
+
+def test_volatility_spike_is_butterfly_arbitrage():
+    vols = [0.2] * 9
+    vols[4] = 0.35  # K = 100 call priced far above its neighbours
+    res = _check(vols)
+    assert res["butterfly_arbitrage"]
+    assert not res["arbitrage_free"]
+
+
+def test_call_price_rising_with_strike_is_vertical_spread_arbitrage():
+    res = _check([0.10, 0.80], strikes=[100.0, 102.0])
+    assert res["vertical_spread_arbitrage"]
+    assert not res["arbitrage_free"]

@@ -112,7 +112,6 @@ class VolatilitySurface:
             for point in data:
                 self.add_volatility_point(**point)
 
-
     def _prepare_data_arrays(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Prepare data for surface fitting"""
         if not self.vol_data:
@@ -124,9 +123,7 @@ class VolatilitySurface:
 
         return strikes, expiries, volatilities
 
-    def _scaled_points(
-        self, strikes: np.ndarray, expiries: np.ndarray
-    ) -> np.ndarray:
+    def _scaled_points(self, strikes: np.ndarray, expiries: np.ndarray) -> np.ndarray:
         """Coordinates (ln K, T), each divided by its spread in the data, so that
         strike and expiry carry comparable weight in the interpolation."""
         return np.column_stack(
@@ -366,41 +363,54 @@ class VolatilitySurface:
 
         return {"strikes": strikes, "volatilities": volatilities, "expiry": expiry}
 
-    def check_arbitrage(self, strikes: np.ndarray, volatilities: np.ndarray) -> dict[str, bool]:
+    def check_arbitrage(
+        self,
+        strikes: np.ndarray,
+        volatilities: np.ndarray,
+        expiry: float,
+        spot: float,
+        r: float = 0.0,
+        q: float = 0.0,
+        tol: float = 1e-10,
+    ) -> dict[str, Any]:
         """
-        Check for arbitrage conditions in volatility smile
+        Static-arbitrage check of one smile, on the call prices it implies.
 
-        Parameters:
-        -----------
-        strikes : np.ndarray
-            Strike prices
-        volatilities : np.ndarray
-            Corresponding volatilities
+        Calls C(K) are priced with Black-Scholes-Merton at each quote's
+        volatility. With strikes sorted, the smile is free of static arbitrage
+        across strikes when
+
+        - vertical spreads: -e^{-rT} <= (C(K2) - C(K1)) / (K2 - K1) <= 0, and
+        - butterflies: these slopes are non-decreasing in K (C convex in K).
+
+        Calendar arbitrage involves several expiries and is not checked here.
 
         Returns:
         --------
-        Dict[str, bool]
-            Arbitrage check results
+        dict
+            'vertical_spread_arbitrage', 'butterfly_arbitrage',
+            'arbitrage_free' (bools) and 'call_prices' (array, sorted strikes).
         """
-        # Calculate total variance
-        total_var = volatilities**2
+        from ..core.pricing_engine import BlackScholesAnalytical
 
-        # Check monotonicity conditions
-        # For calendar spreads: longer expiries should have higher total variance
-        calendar_arbitrage = False
-
-        # Check butterfly spreads: convexity condition
-        butterfly_arbitrage = False
-        if len(strikes) >= 3:
-            # Second derivative of call prices with respect to strike should be positive
-            # This translates to specific conditions on implied volatility
-            d2c_dk2 = np.gradient(np.gradient(total_var))
-            butterfly_arbitrage = np.any(d2c_dk2 < -1e-6)
-
+        K = np.asarray(strikes, dtype=float)
+        vols = np.asarray(volatilities, dtype=float)
+        if K.shape != vols.shape or K.ndim != 1 or K.size < 2:
+            raise ValueError("strikes and volatilities must be 1-D arrays of equal length >= 2")
+        order = np.argsort(K)
+        K, vols = K[order], vols[order]
+        bs = BlackScholesAnalytical()
+        calls = np.array(
+            [bs.price(spot, k, expiry, r, v, "call", q) for k, v in zip(K, vols, strict=True)]
+        )
+        slopes = np.diff(calls) / np.diff(K)
+        vertical = bool(np.any(slopes > tol) or np.any(slopes < -np.exp(-r * expiry) - tol))
+        butterfly = bool(np.any(np.diff(slopes) < -tol)) if slopes.size >= 2 else False
         return {
-            "calendar_arbitrage": calendar_arbitrage,
-            "butterfly_arbitrage": butterfly_arbitrage,
-            "arbitrage_free": not (calendar_arbitrage or butterfly_arbitrage),
+            "vertical_spread_arbitrage": vertical,
+            "butterfly_arbitrage": butterfly,
+            "arbitrage_free": not (vertical or butterfly),
+            "call_prices": calls,
         }
 
     def surface_statistics(self) -> dict[str, float]:

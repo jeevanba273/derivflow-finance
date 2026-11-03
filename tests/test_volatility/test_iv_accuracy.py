@@ -64,19 +64,30 @@ def test_low_vega_case_is_accurate():
 
 
 def test_vectorised_matches_scalar(bs_ref):
+    """The array solver agrees with the scalar one.
+
+    The two evaluate the price with NumPy and the math module respectively,
+    whose exp and log may round differently in the last bit (SIMD builds of
+    NumPy do). A price difference of a few ULP moves the volatility by about
+    that amount divided by vega, so the allowed difference scales with 1/vega,
+    and both solutions must reprice the option.
+    """
     T, m, sig, ot = (np.array(x) for x in zip(*GRID, strict=True))
     K = S * m
     prices = np.array(
         [bs_ref(S, k, t, R, s, o, Q) for k, t, s, o in zip(K, T, sig, ot, strict=True)]
     )
     vec = implied_volatility_vectorized(prices, S, K, T, R, ot, Q)
+    eps = np.finfo(float).eps
     for n in range(len(prices)):
         try:
             ref = implied_volatility(prices[n], S, K[n], T[n], R, ot[n], Q)
         except ValueError:
             assert np.isnan(vec[n])
             continue
-        assert vec[n] == pytest.approx(ref, abs=1e-12)
+        allowed = 1e-12 + 64 * eps * S / _vega(K[n], T[n], sig[n])
+        assert vec[n] == pytest.approx(ref, abs=allowed)
+        assert bs_ref(S, K[n], T[n], R, vec[n], ot[n], Q) == pytest.approx(prices[n], abs=1e-11 * S)
 
 
 @pytest.mark.parametrize(

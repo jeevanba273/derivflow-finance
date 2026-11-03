@@ -1,27 +1,27 @@
-"""Implied volatility: invert option prices back into volatilities.
+"""Implied volatility: single quotes, a whole smile at once, and quotes with no solution.
 
 Run with:  python examples/implied_volatility.py
 """
 
-from derivflow import implied_vol_from_chain, implied_volatility, price_european_option
+import numpy as np
 
-print("Single-option round trip (price -> implied vol):")
-for sigma in (0.15, 0.25, 0.40):
-    price = price_european_option(100, 100, 0.5, 0.05, sigma, "call")
-    iv = implied_volatility(price, 100, 100, 0.5, 0.05, "call")
-    print(f"  true sigma {sigma:.2f} -> price {price:.4f} -> implied {iv:.4f}")
+from derivflow import black_scholes_price, implied_volatility, implied_volatility_vectorized
 
-print("\nInverting a small option chain (a volatility smile):")
-chain = [
-    {
-        "strike": k,
-        "expiry": 0.5,
-        "option_type": "call",
-        "market_price": price_european_option(
-            100, k, 0.5, 0.05, 0.20 + 0.10 * abs(k - 100) / 100, "call"
-        ),
-    }
-    for k in (90, 95, 100, 105, 110)
-]
-for row in implied_vol_from_chain(chain, S=100, r=0.05):
-    print(f"  K={row['strike']:.0f}  price={row['market_price']:.4f}  IV={row['volatility']:.4f}")
+S, T, r, q = 100.0, 0.5, 0.03, 0.01
+
+# A smile generated from a known volatility function, then inverted.
+strikes = np.array([70.0, 85.0, 100.0, 115.0, 130.0])
+true_vols = 0.20 + 0.4 * np.log(strikes / S) ** 2 - 0.05 * np.log(strikes / S)
+prices = np.array(
+    [black_scholes_price(S, k, T, r, v, "call", q) for k, v in zip(strikes, true_vols, strict=True)]
+)
+solved = implied_volatility_vectorized(prices, S, strikes, T, r, "call", q)
+for k, v, s in zip(strikes, true_vols, solved, strict=True):
+    print(f"K={k:5.1f}  true {v:.6f}  solved {s:.6f}  error {abs(s - v):.1e}")
+
+# A quote below the discounted intrinsic value has no solution.
+try:
+    implied_volatility(29.0, S, 70.0, T, r, "call", q)
+except ValueError as exc:
+    print("no solution:", exc)
+print("with on_fail='nan':", implied_volatility(29.0, S, 70.0, T, r, "call", q, on_fail="nan"))

@@ -157,22 +157,26 @@ class BlackScholesAnalytical(PricingMethod):
 
 class BinomialTree(PricingMethod):
     """
-    Binomial tree pricing for American and European options
+    Cox-Ross-Rubinstein (1979) binomial tree for European and American options.
 
-    Provides discrete-time approximation to Black-Scholes.
-    Supports early exercise for American options.
+    u = exp(sigma sqrt(dt)), d = 1 / u, p = (exp((r - q) dt) - d) / (u - d),
+    dt = T / steps. Values are rolled back with discount exp(-r dt); for
+    American exercise each node takes max(continuation, intrinsic). European
+    prices converge to Black-Scholes-Merton with error O(1/steps), oscillating
+    between odd and even step counts. The backward induction is vectorised
+    over the nodes of each time step.
     """
 
     def __init__(self, steps: int = 100):
         """
-        Initialize binomial tree
-
         Parameters:
         -----------
         steps : int
-            Number of time steps in the tree
+            Number of time steps (>= 1).
         """
-        self.steps = steps
+        if int(steps) < 1:
+            raise ValueError("steps must be at least 1")
+        self.steps = int(steps)
 
     def price(
         self,
@@ -183,74 +187,63 @@ class BinomialTree(PricingMethod):
         sigma: float,
         option_type: str = "call",
         american: bool = False,
+        q: float = 0.0,
     ) -> float:
         """
-        Price option using binomial tree
+        Price an option on the tree.
 
         Parameters:
         -----------
-        S : float
-            Current spot price
-        K : float
-            Strike price
+        S, K : float
+            Spot and strike.
         T : float
-            Time to expiry
-        r : float
-            Risk-free rate
+            Time to expiry in years; T <= 0 returns the intrinsic value.
+        r, q : float
+            Continuously compounded risk-free rate and dividend yield.
         sigma : float
-            Volatility
+            Annualised volatility.
         option_type : str
             'call' or 'put'
         american : bool
-            Whether option is American style
+            Allow early exercise at every node.
 
         Returns:
         --------
         float
             Option price
         """
-        # Tree parameters
-        dt = T / self.steps
-        u = np.exp(sigma * np.sqrt(dt))  # Up factor
-        d = 1 / u  # Down factor
-        p = (np.exp(r * dt) - d) / (u - d)  # Risk-neutral probability
+        ot = option_type.lower()
+        if ot not in ("call", "put"):
+            raise ValueError("option_type must be 'call' or 'put'")
+        sign = 1.0 if ot == "call" else -1.0
+        if np.isfinite(T) and T <= 0:
+            if not (S > 0 and K > 0):
+                raise ValueError("S and K must be positive")
+            return max(sign * (S - K), 0.0)
+        _validate_market_inputs(S, K, T, sigma)
 
-        # Initialize asset prices at expiry
-        asset_prices = np.zeros(self.steps + 1)
-        for i in range(self.steps + 1):
-            asset_prices[i] = S * (u ** (self.steps - i)) * (d**i)
+        n = self.steps
+        dt = T / n
+        step = sigma * np.sqrt(dt)
+        u = np.exp(step)
+        d = 1.0 / u
+        p = (np.exp((r - q) * dt) - d) / (u - d)
+        if not 0.0 < p < 1.0:
+            raise ValueError(
+                f"risk-neutral probability {p:.4f} is outside (0, 1); increase the number of steps"
+            )
+        disc = np.exp(-r * dt)
 
-        # Initialize option values at expiry
-        option_values = np.zeros(self.steps + 1)
-        for i in range(self.steps + 1):
-            if option_type.lower() == "call":
-                option_values[i] = max(asset_prices[i] - K, 0)
-            else:
-                option_values[i] = max(K - asset_prices[i], 0)
+        def spots(level: int) -> np.ndarray:
+            # Node j at time level has price S u^(level - j) d^j = S exp((level - 2 j) step).
+            return S * np.exp((level - 2.0 * np.arange(level + 1)) * step)
 
-        # Backward induction
-        for step in range(self.steps - 1, -1, -1):
-            for i in range(step + 1):
-                # Calculate continuation value
-                continuation_value = np.exp(-r * dt) * (
-                    p * option_values[i] + (1 - p) * option_values[i + 1]
-                )
-
-                if american:
-                    # Calculate intrinsic value for American option
-                    current_asset_price = S * (u ** (step - i)) * (d**i)
-                    if option_type.lower() == "call":
-                        intrinsic_value = max(current_asset_price - K, 0)
-                    else:
-                        intrinsic_value = max(K - current_asset_price, 0)
-
-                    # American option: max of continuation and intrinsic
-                    option_values[i] = max(continuation_value, intrinsic_value)
-                else:
-                    # European option: only continuation value
-                    option_values[i] = continuation_value
-
-        return option_values[0]
+        values = np.maximum(sign * (spots(n) - K), 0.0)
+        for level in range(n - 1, -1, -1):
+            values = disc * (p * values[:-1] + (1.0 - p) * values[1:])
+            if american:
+                values = np.maximum(values, sign * (spots(level) - K))
+        return float(values[0])
 
 
 class MonteCarloEngine(PricingMethod):

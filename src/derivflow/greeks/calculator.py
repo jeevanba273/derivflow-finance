@@ -1,12 +1,34 @@
 """
-DERIVFLOW-FINANCE: Advanced Greeks Calculator
-===========================================
+Black-Scholes-Merton Greeks: closed forms and finite differences.
 
-Complete Greeks calculation engine for all derivatives.
-Supports analytical, numerical, and complex step methods.
+Units (the same for both methods and for every Greek reported here):
+
+=========  ===========================================  =======================
+Greek      Definition                                   Reported per
+=========  ===========================================  =======================
+delta      dV/dS                                        1 unit of spot
+gamma      d2V/dS2                                      1 unit of spot
+theta      dV/dt (calendar time, = -dV/dT)              calendar day (1/365 y)
+vega       dV/dsigma                                    1 vol point (0.01)
+rho        dV/dr                                        1 rate point (0.01)
+volga      d2V/dsigma2                                  (1 vol point)^2
+vanna      d2V/dS dsigma                                1 vol point
+speed      d3V/dS3                                      1 unit of spot
+zomma      d3V/dS2 dsigma                               1 vol point
+color      d3V/dS2 dt (calendar time)                   calendar day
+=========  ===========================================  =======================
+
+The closed forms are those of Haug, The Complete Guide to Option Pricing
+Formulas (2nd ed., 2007), chapter 2, for the generalised Black-Scholes-Merton
+model with continuous dividend yield q. Every analytical Greek is checked
+against central finite differences of the price in the test suite.
 """
 
+from __future__ import annotations
+
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import scipy.stats as stats
@@ -16,7 +38,8 @@ from .._validation import check_market_inputs, check_option_type
 
 @dataclass
 class GreeksResult:
-    """Container for Greeks calculation results"""
+    """Greeks of one option, in the units listed in the module docstring.
+    Second- and third-order Greeks are None for the finite-difference method."""
 
     delta: float
     gamma: float
@@ -34,21 +57,24 @@ class GreeksResult:
 
 class GreeksCalculator:
     """
-    Advanced Greeks calculator supporting multiple methodologies
+    Greeks of European options.
 
-    Provides analytical Greeks for standard options and numerical
-    Greeks for exotic instruments using finite differences.
+    method='analytical' uses the Black-Scholes-Merton closed forms;
+    method='numerical' bumps the inputs of a pricing function (Black-Scholes by
+    default, or any ``pricing_func(S, K, T, r, sigma, option_type, ...)``) and
+    takes central differences for delta, gamma, vega and rho and a one-day
+    forward difference for theta.
     """
 
     def __init__(self, method: str = "analytical"):
         """
-        Initialize Greeks calculator
-
         Parameters:
         -----------
         method : str
-            Calculation method ('analytical', 'numerical', 'complex_step')
+            'analytical' or 'numerical'.
         """
+        if method not in ("analytical", "numerical"):
+            raise ValueError("method must be 'analytical' or 'numerical'")
         self.method = method
         self.default_bumps = {
             "delta": 0.01,  # 1% bump for delta
@@ -68,7 +94,7 @@ class GreeksCalculator:
         option_type: str = "call",
         q: float = 0.0,
     ) -> float:
-        """Black-Scholes pricing function for Greeks calculation (with dividend yield q)"""
+        """Black-Scholes-Merton price used as the default for numerical Greeks."""
         if T <= 0:
             if option_type.lower() == "call":
                 return max(S - K, 0)
@@ -95,29 +121,40 @@ class GreeksCalculator:
         q: float = 0.0,
     ) -> GreeksResult:
         """
-        Calculate analytical Greeks for European options
+        Closed-form Greeks of a European option.
+
+        With d1, d2 as in Black-Scholes-Merton, phi the normal density and
+        N the normal CDF (call shown; puts follow from parity):
+
+        delta = e^{-qT} N(d1); gamma = e^{-qT} phi(d1) / (S sigma sqrt(T));
+        vega = S e^{-qT} phi(d1) sqrt(T);
+        theta = -S e^{-qT} phi(d1) sigma / (2 sqrt(T)) - r K e^{-rT} N(d2)
+                + q S e^{-qT} N(d1);
+        rho = K T e^{-rT} N(d2); volga = vega d1 d2 / sigma;
+        vanna = -e^{-qT} phi(d1) d2 / sigma;
+        speed = -gamma (d1 / (sigma sqrt(T)) + 1) / S;
+        zomma = gamma (d1 d2 - 1) / sigma;
+        color = gamma (q + (r - q) d1 / (sigma sqrt(T)) + (1 - d1 d2) / (2T)),
+
+        then scaled to the units in the module docstring. At expiry (T <= 0)
+        delta is the payoff slope and the other Greeks are 0.
 
         Parameters:
         -----------
-        S : float
-            Current spot price
-        K : float
-            Strike price
+        S, K : float
+            Spot and strike.
         T : float
-            Time to expiry
-        r : float
-            Risk-free rate
+            Time to expiry in years.
+        r, q : float
+            Continuously compounded risk-free rate and dividend yield.
         sigma : float
-            Volatility
+            Annualised volatility.
         option_type : str
             'call' or 'put'
-        q : float
-            Continuous dividend yield (default 0.0 reproduces classic Black-Scholes)
 
         Returns:
         --------
         GreeksResult
-            Complete Greeks profile
         """
         check_market_inputs(S, K, T, sigma)
         check_option_type(option_type)
@@ -143,7 +180,6 @@ class GreeksCalculator:
 
         # Standard normal PDF and CDF
         phi_d1 = stats.norm.pdf(d1)
-        phi_d2 = stats.norm.pdf(d2)
         N_d1 = stats.norm.cdf(d1)
         N_d2 = stats.norm.cdf(d2)
         N_minus_d1 = stats.norm.cdf(-d1)
@@ -197,24 +233,32 @@ class GreeksCalculator:
         )
 
     def numerical_greeks(
-        self, pricing_func, base_params: dict, bumps: dict | None = None
+        self,
+        pricing_func: Callable[..., float],
+        base_params: dict[str, Any],
+        bumps: dict[str, float] | None = None,
     ) -> GreeksResult:
         """
-        Calculate numerical Greeks using finite differences
+        Finite-difference Greeks of ``pricing_func(**base_params)``.
+
+        Default bumps: spot +-1% (relative, central differences for delta and
+        gamma), sigma +-1% (relative, central), r +-0.01 (absolute, central),
+        T -1 day (forward). Results use the module's units.
 
         Parameters:
         -----------
         pricing_func : callable
-            Function that prices the instrument
-        base_params : Dict
-            Base parameters for pricing
-        bumps : Dict, optional
-            Custom bump sizes for each Greek
+            Pricer taking S, K, T, r, sigma (and any other base_params) as
+            keyword arguments.
+        base_params : dict
+            Inputs at which the Greeks are computed.
+        bumps : dict, optional
+            Override of ``default_bumps`` (keys 'delta', 'theta', 'vega', 'rho').
 
         Returns:
         --------
         GreeksResult
-            Numerically calculated Greeks
+            Greeks with the higher-order fields left as None.
         """
         check_market_inputs(
             base_params["S"], base_params["K"], base_params["T"], base_params["sigma"]
@@ -247,7 +291,7 @@ class GreeksCalculator:
         price_theta = pricing_func(**params_theta)
         theta = (price_theta - base_price) / step / 365.0
 
-        # Vega: dP/dσ
+        # Vega: dP/dsigma
         params_vega_up = base_params.copy()
         params_vega_down = base_params.copy()
         params_vega_up["sigma"] = base_params["sigma"] * (1 + bumps["vega"])
@@ -275,9 +319,9 @@ class GreeksCalculator:
             rho=rho / 100,  # Convert to per 1% rate change
         )
 
-    def portfolio_greeks(self, positions: list[dict]) -> dict[str, float]:
+    def portfolio_greeks(self, positions: list[dict[str, Any]]) -> dict[str, float]:
         """
-        Calculate portfolio-level Greeks by aggregating individual positions
+        Sum Greeks over positions, weighting each by quantity x notional
 
         Parameters:
         -----------
@@ -322,9 +366,10 @@ class GreeksCalculator:
         T: float,
         r: float,
         sigma: float,
-        spot_range: tuple = (0.8, 1.2),
+        spot_range: tuple[float, float] = (0.8, 1.2),
         num_points: int = 21,
         option_type: str = "call",
+        q: float = 0.0,
     ) -> dict[str, np.ndarray]:
         """
         Calculate Greeks across a range of spot prices (Greeks ladder)
@@ -365,7 +410,7 @@ class GreeksCalculator:
         }
 
         for i, spot in enumerate(spot_prices):
-            greeks = self.analytical_greeks(spot, K, T, r, sigma, option_type)
+            greeks = self.analytical_greeks(spot, K, T, r, sigma, option_type, q)
             results["delta"][i] = greeks.delta
             results["gamma"][i] = greeks.gamma
             results["theta"][i] = greeks.theta
@@ -382,10 +427,10 @@ class GreeksCalculator:
         r: float,
         sigma: float,
         option_type: str = "call",
-        pricing_func=None,
+        pricing_func: Callable[..., float] | None = None,
         *,
         q: float = 0.0,
-        **kwargs,
+        **kwargs: Any,
     ) -> GreeksResult:
         """
         Main interface for Greeks calculation
@@ -443,99 +488,28 @@ class GreeksCalculator:
 def format_greeks_report(
     greeks: GreeksResult, S: float, K: float, option_type: str = "call"
 ) -> str:
-    """
-    Format Greeks results into a professional report
-
-    Parameters:
-    -----------
-    greeks : GreeksResult
-        Greeks calculation results
-    S : float
-        Current spot price
-    K : float
-        Strike price
-    option_type : str
-        'call' or 'put'
-
-    Returns:
-    --------
-    str
-        Formatted report string
-    """
-    moneyness = (
-        "ITM"
-        if (option_type.lower() == "call" and S > K) or (option_type.lower() == "put" and S < K)
-        else "OTM"
-    )
-    if abs(S - K) / K < 0.02:  # Within 2% of strike
-        moneyness = "ATM"
-
-    report = f"""
-GREEKS ANALYSIS REPORT
-{"=" * 50}
-Option Details:
-  Type: {option_type.upper()}
-  Spot: ${S:.2f} | Strike: ${K:.2f} | Moneyness: {moneyness}
-
-FIRST-ORDER GREEKS (Risk Sensitivities)
-{"-" * 50}
-  Delta (Δ):    {greeks.delta:>8.4f}  | Price change per $1 spot move
-  Theta (Θ):    {greeks.theta:>8.2f}  | Price decay per day
-  Vega (ν):     {greeks.vega:>8.2f}   | Price change per 1% vol move
-  Rho (ρ):      {greeks.rho:>8.3f}    | Price change per 1% rate move
-
-SECOND-ORDER GREEKS (Convexity)
-{"-" * 50}
-  Gamma (Γ):    {greeks.gamma:>8.4f}  | Delta change per $1 spot move"""
-
-    if greeks.volga is not None:
-        report += f"""
-
-ADVANCED GREEKS (Higher-Order Sensitivities)
-{"-" * 50}
-  Volga:        {greeks.volga:>8.4f}  | Vega change per 1% vol move
-  Vanna:        {greeks.vanna:>8.4f}  | Delta change per 1% vol move"""
-
-    if greeks.speed is not None:
-        report += f"""
-  Speed:        {greeks.speed:>8.6f}  | Gamma change per $1 spot move
-  Zomma:        {greeks.zomma:>8.6f}  | Gamma change per 1% vol move
-  Color:        {greeks.color:>8.6f}  | Gamma decay per day"""
-
-    return report
-
-
-if __name__ == "__main__":
-    # Example usage and testing
-    print("DERIVFLOW-FINANCE Greeks Calculator")
-    print("=" * 60)
-
-    # Test parameters
-    S, K, T, r, sigma = 100, 105, 0.25, 0.05, 0.2
-
-    print("Calculating Greeks for CALL option:")
-    print(f"   S=${S}, K=${K}, T={T}, r={r:.1%}, σ={sigma:.1%}")
-    print("-" * 60)
-
-    # Calculate analytical Greeks
-    calculator = GreeksCalculator(method="analytical")
-    greeks = calculator.calculate_greeks(S, K, T, r, sigma, "call")
-
-    # Display formatted report
-    print(format_greeks_report(greeks, S, K, "call"))
-
-    print("\n" + "=" * 60)
-    print("GREEKS LADDER (Delta across spot prices)")
-    print("-" * 60)
-
-    # Generate Greeks ladder
-    ladder = calculator.greeks_ladder(S, K, T, r, sigma, spot_range=(0.9, 1.1), num_points=11)
-
-    print(f"{'Spot':>8} {'Delta':>8} {'Gamma':>8} {'Theta':>8}")
-    print("-" * 35)
-    for i in range(len(ladder["spot_prices"])):
-        spot = ladder["spot_prices"][i]
-        delta = ladder["delta"][i]
-        gamma = ladder["gamma"][i]
-        theta = ladder["theta"][i]
-        print(f"{spot:>8.1f} {delta:>8.4f} {gamma:>8.4f} {theta:>8.2f}")
+    """Plain-text summary of a :class:`GreeksResult` with the units of each Greek."""
+    ot = option_type.lower()
+    if abs(S - K) / K < 0.02:
+        moneyness = "ATM (within 2% of strike)"
+    elif (ot == "call" and S > K) or (ot == "put" and S < K):
+        moneyness = "ITM"
+    else:
+        moneyness = "OTM"
+    lines = [
+        f"{ot.upper()} option, spot {S:.2f}, strike {K:.2f}, {moneyness}",
+        f"  delta  {greeks.delta:12.6f}  per unit of spot",
+        f"  gamma  {greeks.gamma:12.6f}  per unit of spot",
+        f"  theta  {greeks.theta:12.6f}  per calendar day",
+        f"  vega   {greeks.vega:12.6f}  per vol point",
+        f"  rho    {greeks.rho:12.6f}  per rate point",
+    ]
+    extra = [
+        ("volga", greeks.volga, "per vol point squared"),
+        ("vanna", greeks.vanna, "per vol point"),
+        ("speed", greeks.speed, "per unit of spot"),
+        ("zomma", greeks.zomma, "per vol point"),
+        ("color", greeks.color, "per calendar day"),
+    ]
+    lines += [f"  {n:<6} {v:12.6g}  {u}" for n, v, u in extra if v is not None]
+    return "\n".join(lines)

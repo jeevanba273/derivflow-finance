@@ -48,7 +48,8 @@ def black_scholes_price(
     All inputs broadcast against each other. T is in years, r and q are
     continuously compounded annual rates, sigma is annualised. Where T <= 0 the
     intrinsic value is returned; where sigma == 0 the discounted forward
-    intrinsic value. Returns a float for scalar input, otherwise an array.
+    intrinsic value. S and K must be positive and sigma non-negative, or
+    ValueError is raised. Returns a float for scalar input, otherwise an array.
     Reference: Hull, Options, Futures, and Other Derivatives, ch. 15 and 17.
     """
     S_, K_, T_, r_, sig_, q_ = np.broadcast_arrays(
@@ -57,6 +58,12 @@ def black_scholes_price(
     ot = option_type.lower()
     if ot not in ("call", "put"):
         raise ValueError("option_type must be 'call' or 'put'")
+    if not np.all(S_ > 0):
+        raise ValueError("S must be positive (spot price)")
+    if not np.all(K_ > 0):
+        raise ValueError("K must be positive (strike)")
+    if not np.all(sig_ >= 0):
+        raise ValueError("sigma must be non-negative (annualised volatility)")
     sign = 1.0 if ot == "call" else -1.0
     live = (T_ > 0) & (sig_ > 0)
     with np.errstate(divide="ignore", invalid="ignore"):

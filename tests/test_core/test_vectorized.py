@@ -46,3 +46,19 @@ def test_broadcasting_and_scalar_input():
 def test_expired_options_return_intrinsic_value():
     out = black_scholes_price(np.array([90.0, 110.0]), 100.0, 0.0, 0.05, 0.2, "call")
     np.testing.assert_allclose(out, [0.0, 10.0])
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "name"),
+    [({"sigma": -0.2}, "sigma"), ({"S": 0.0}, "S"), ({"K": np.array([100.0, -1.0])}, "K")],
+)
+def test_invalid_inputs_raise_like_the_scalar_pricer(kwargs, name):
+    args = {"S": 100.0, "K": 100.0, "T": 1.0, "r": 0.05, "sigma": 0.2} | kwargs
+    with pytest.raises(ValueError, match=name):
+        black_scholes_price(**args)
+
+
+def test_zero_volatility_gives_discounted_forward_intrinsic():
+    assert black_scholes_price(100.0, 90.0, 1.0, 0.05, 0.0) == pytest.approx(
+        100.0 - 90.0 * np.exp(-0.05)
+    )

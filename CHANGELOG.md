@@ -4,6 +4,105 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-04
+
+This release corrects numerical errors found by checking the library against QuantLib,
+py_vollib, published reference values and finite differences, and changes some defaults.
+Results from 0.2.0 for the functions listed under "Fixed" should not be reused.
+
+### Fixed
+
+- Heston: `price_option(method="fourier")` raised `ValueError` for every input. Prices now come
+  from numerical integration of the Lewis (2001) formula; they match Alan Lewis's reference
+  prices to 1.1e-12 and QuantLib's `AnalyticHestonEngine` to 2.1e-10 on 27 cases.
+- Heston Monte Carlo used Euler steps with a variance floor, which is biased when the Feller
+  condition fails (10.06 against an analytic 9.04 for kappa=1, sigma=0.9, rho=-0.7). It now
+  uses Andersen's QE scheme (default) or full-truncation Euler and reports a standard error.
+- Heston calibration minimised unseeded Monte Carlo prices with finite-difference gradients,
+  stopped at the starting point and reported success. It now fits analytic prices by bounded
+  least squares and reports the RMSE.
+- Parametric VaR applied annual volatility to a horizon in days: a 1-day 99% VaR of 100 shares
+  at 100 with 20% volatility was 4,652.70 instead of 293.09. It also ignored option deltas and
+  the contract multiplier, did not net positions in the same underlying and returned NaN for a
+  flat book.
+- Monte Carlo VaR drew an independent shock for every position, even on the same underlying;
+  long and short 100 shares of one stock showed a 99% VaR of 420 instead of 0.
+- `calculate_hedge_ratio` used the share delta summed across all underlyings.
+- `risk_contributions` in `generate_risk_report` were position values divided by portfolio
+  value; they are now component VaR per underlying and sum to the VaR.
+- The no-touch probability of up barriers used the wrong reflection factor (0.398 instead of
+  0.322 for S=100, H=110, T=1, r=5%, sigma=20%); barrier prices were not affected. Monte Carlo
+  knock-in results reported the probability of hitting the barrier under the same name.
+- `average_type="discrete"` geometric Asian options used the continuous formula (5.547 against
+  QuantLib's 5.938 with 12 fixings).
+- The arithmetic Asian control variate was biased because its analytical mean was for a
+  different averaging schedule than the simulated one (5.786 against 5.683 +- 0.012 from plain
+  Monte Carlo with 12 fixings).
+- Greeks: color had the wrong sign and terms; volga was 100 times its documented unit;
+  numerical theta was per year while analytical theta is per day; an expired in-the-money put
+  had delta 0.
+- Implied volatility stopped on a price tolerance, losing accuracy where vega is small, and
+  returned arbitrary values when the time value was below double precision.
+- Volatility surfaces: SVI interpolation ignored the strike; the default "cubic_spline"
+  surface was a smoothed RBF that did not pass through the quotes; `check_arbitrage` tested the
+  curvature of volatility instead of call prices.
+- Market data: missing implied volatilities were filled with 0.25; `is_market_open` needed
+  `pytz`, which was not a dependency; the 10-year yield was used as the short rate; time to
+  expiry used 365 and 365.25 days in different places.
+- `MonteCarloEngine`, `BarrierOptions`, `AsianOptions` and `create_sample_surface` seeded
+  NumPy's global random state.
+
+### Changed
+
+These can change results or break existing code:
+
+- `implied_volatility` raises `ValueError` when no volatility reproduces the price;
+  `on_fail="nan"` gives the previous behaviour. `tol` is now a tolerance on volatility.
+- `HestonModel.price_option` defaults to `method="analytic"`; `HestonResult` carries
+  `std_error` and `confidence_interval` instead of Greek fields that were never filled.
+- Asian Monte Carlo averages n fixings at t_i = i T / n and excludes today's spot.
+- `VolatilitySurface` defaults to `method="rbf"`; `"cubic_spline"` is a deprecated alias.
+  `check_arbitrage` takes `expiry` and `spot` and no longer returns `calendar_arbitrage`.
+- `scenario_analysis` reprices options in full by default; `method="delta_gamma"` keeps the
+  approximation.
+- Seeded Monte Carlo results differ from 0.2.0 because every class has its own
+  `numpy.random.Generator`.
+- At expiry a barrier counts as touched when the spot is on or beyond it.
+- Python 3.10 or later. The core dependencies are NumPy and SciPy; yfinance and pandas move to
+  the `[data]` extra and plotly and matplotlib to `[plot]`. `import derivflow` no longer
+  imports any of them.
+- Scalar Black-Scholes prices and Greeks use the `math` module instead of `scipy.stats`, which
+  removes most of the per-call overhead.
+- `create_sample_portfolio` uses hypothetical underlyings ASSET_A and ASSET_B.
+
+### Added
+
+- `black_scholes_price`, a vectorised Black-Scholes-Merton pricer.
+- Antithetic variates and a control variate in `MonteCarloEngine`; dividend yield in
+  `BinomialTree`, `MonteCarloEngine` and `HestonModel`.
+- `derivflow.portfolio.risk_measures`: VaR and expected shortfall of a P&L sample and closed
+  forms for normal and Student-t P&L.
+- `PortfolioRiskAnalyzer.set_correlation`, `dollar_delta_by_underlying`,
+  `calculate_greeks_by_underlying`, `var_contributions` and `simulate_pnl`.
+- Input validation with errors that name the parameter.
+- Tests: 91 before, 2105 now, including Hull, Haug and Lewis reference values, QuantLib and
+  py_vollib cross-checks, every Greek against finite differences, and runs of every example,
+  notebook and documentation snippet.
+- `benchmarks/run_benchmarks.py` and `benchmarks/validation_report.py` with their results, a
+  rewritten documentation site and README, and `CITATION.cff`.
+- CI runs ruff, the tests on Python 3.10 to 3.13 (plus Windows and macOS), the oldest
+  supported NumPy and SciPy, and the documentation build.
+
+### Removed
+
+- `demo_derivflow`, the `derivflow-demo` and `derivflow-info` console scripts, the empty
+  `calibration` subpackage and the `__main__` demo blocks in library modules.
+- Result fields that were never filled: the Greeks of `BarrierOptionResult` and
+  `HestonResult`, and `sharpe_ratio`, `max_drawdown` and `correlation_matrix` of
+  `RiskMetrics`.
+- The numba kernel and extra, `setup.py` and `requirements.txt` (`pyproject.toml` is the only
+  packaging file).
+
 ## [0.2.0] - 2026-06-29
 
 ### Added
@@ -44,10 +143,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `PortfolioRiskAnalyzer.add_option_position` accepted `dividend_yield` but never applied
   it; it is now forwarded to pricing and Greeks.
 - `__version__` was hardcoded to `"1.0.0"`, diverging from the packaged version; it is now
-  sourced from the setuptools_scm-generated `_version.py`.
+  sourced from the `_version.py` file written by setuptools_scm.
 
 ### Changed
-- Monte Carlo path generation is vectorized (cumulative sum of log-returns), bit-identical
+- Monte Carlo path simulation is vectorized (cumulative sum of log-returns), bit-identical
   to the previous exact-GBM scheme and faster; applied to the core, Asian, and barrier
   engines.
 - Removed the unimplemented "Lookback options" claim from the feature list (kept on the

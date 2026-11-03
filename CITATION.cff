@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using these metadata."
+type: software
+title: "derivflow: option pricing and risk in Python"
+abstract: >-
+  A Python library for European and American option pricing, Greeks, implied volatility,
+  Monte Carlo with variance reduction, barrier and Asian options, the Heston model,
+  volatility surfaces and portfolio VaR, with results cross-checked against QuantLib,
+  py_vollib and published reference values.
+authors:
+  - given-names: "Jeevan"
+    family-names: "B A"
+version: "0.3.0"
+date-released: "2026-11-04"
+license: MIT
+repository-code: "https://github.com/jeevanba273/derivflow-finance"
+url: "https://derivflow-finance.readthedocs.io"
+keywords:
+  - option pricing
+  - Black-Scholes
+  - Greeks
+  - implied volatility
+  - Monte Carlo
+  - Heston model
+  - value at risk
+  - quantitative finance

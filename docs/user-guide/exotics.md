@@ -90,6 +90,8 @@ arithmetic, plain            6.1832 +- 0.0270
 
 `sensitivity_analysis` computes finite-difference delta, gamma, vega, rho and theta, reusing
 the same random numbers for every bumped revaluation so the Monte Carlo noise largely cancels.
+Unlike `GreeksCalculator`, it reports vega and rho per unit of volatility and rate and theta per
+year (-dV/dT), not per point and per day.
 
 ```python
 print(asian.sensitivity_analysis(S, K, T, r, sigma, "call", "arithmetic", "spot"))

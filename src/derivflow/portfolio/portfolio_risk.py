@@ -259,7 +259,9 @@ class PortfolioRiskAnalyzer:
         dividend_yield: float = 0.0,
     ) -> None:
         """
-        Add option position to portfolio
+        Add a European option position, priced and with Greeks at the
+        analyzer's current ``risk_free_rate``. The rate is stored on the
+        position; changing the analyzer's rate later does not reprice it.
 
         Parameters:
         -----------
@@ -278,7 +280,7 @@ class PortfolioRiskAnalyzer:
         volatility : float
             Implied volatility
         dividend_yield : float
-            Dividend yield
+            Continuous dividend yield.
         """
         greeks = self.greeks_calc.calculate_greeks(
             current_price,

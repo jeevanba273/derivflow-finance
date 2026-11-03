@@ -11,7 +11,8 @@ Conventions:
 - option quantities are contracts of 100 units by default (`contract_multiplier`);
 - VaR and expected shortfall are positive loss amounts in currency units;
 - correlations between underlyings are an input (`set_correlation`); without one the
-  underlyings are treated as uncorrelated.
+  underlyings are treated as uncorrelated;
+- each option position keeps the risk-free rate the analyzer had when the position was added.
 
 ## A small book
 
@@ -59,7 +60,10 @@ print("component 99% VaR", {k: round(v, 2) for k, v in book.var_contributions(0.
 component 99% VaR {'INDEX_A': 4059.42, 'INDEX_B': -121.52}
 ```
 
-The component (Euler) contributions add up to the delta-normal VaR.
+The component (Euler) contributions add up to the delta-normal VaR. Because the delta-normal
+method is linear, it can report more than the most a long option can lose, for example for an
+option expiring within the horizon; use the Monte Carlo method for books with short-dated or
+far-from-the-money options.
 
 ## Scenarios and hedges
 

@@ -37,5 +37,10 @@ What the methods do:
 - `is_market_open` knows weekends and regular hours (09:30 to 16:00 New York), not exchange
   holidays.
 
+Listed US equity options are American, while the implied volatilities here come from the
+European Black-Scholes-Merton formula with a flat dividend yield. They are therefore
+approximate where early exercise matters: deep in-the-money puts and options on stocks paying
+dividends. Out-of-the-money quotes are the safer input for a surface.
+
 Yahoo data are delayed and can be stale or missing, especially outside trading hours. Check
 quotes before relying on numbers derived from them.

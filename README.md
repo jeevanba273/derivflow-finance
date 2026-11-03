@@ -159,6 +159,8 @@ derivflow is slower (trees, Heston) the table says so.
 - Portfolio VaR takes volatilities and correlations as inputs, has no volatility or rate risk,
   and assumes jointly lognormal underlyings over the horizon.
 - Market data comes from Yahoo Finance through yfinance: delayed, sometimes stale or missing.
+  Its implied volatilities use the European formula, while listed US equity options are
+  American.
 
 ## Documentation
 

@@ -14,6 +14,9 @@ Conventions and limitations:
   from the bid/ask mid (last trade if there is no two-sided quote), the given
   rate and dividend yield. Quotes with no solution are dropped. Yahoo's own
   implied volatility is kept separately as ``vendor_implied_volatility``.
+- Listed US equity options are American; implied volatilities from the
+  European formula are approximate where early exercise matters (deep
+  in-the-money puts, dividend-paying stocks).
 - The risk-free rate proxy is the 13-week US Treasury bill yield (^IRX) / 100,
   used as a continuously compounded rate; this is an approximation.
 - Yahoo data are delayed and can be stale or missing, especially outside

@@ -55,7 +55,7 @@ test = ["pytest>=7.0", "pytest-cov>=4.0"]
 docs = ["sphinx>=7.0", "sphinx-rtd-theme>=2.0", "myst-parser>=2.0"]
 dev = [
     "derivflow-finance[data,plot,test,validation]",
-    "ruff>=0.6",
+    "ruff>=0.17,<0.18",
     "build>=1.0",
 ]
 

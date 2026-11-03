@@ -29,7 +29,7 @@ What actually happened, including the full traceback if an error was raised.
 
 ## Environment
 
-- DERIVFLOW-FINANCE version: (e.g. `0.2.0`)
+- derivflow version: (e.g. `0.3.0`, from `python -c "import derivflow; print(derivflow.__version__)"`)
 - Python version: (e.g. `3.11`)
 - Operating system: (e.g. Windows 11, Ubuntu 22.04, macOS 14)
 - Installed via: (PyPI, source, editable)

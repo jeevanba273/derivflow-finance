@@ -5,14 +5,14 @@
 Security fixes are provided for the latest release series. Please ensure you are
 running a current version before reporting an issue.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.2.x   | :white_check_mark: |
-| < 0.2   | :x:                |
+| Version | Supported |
+| ------- | --------- |
+| 0.3.x   | yes       |
+| < 0.3   | no        |
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in DERIVFLOW-FINANCE, please report it
+If you discover a security vulnerability in derivflow, please report it
 **privately**. Do **not** open a public GitHub issue, pull request, or
 discussion for security vulnerabilities, as that could expose users to risk
 before a fix is available.
@@ -34,7 +34,7 @@ include:
 
 ## Scope and a note on data sources
 
-DERIVFLOW-FINANCE can pull **live market data over the network via
+derivflow can pull **live market data over the network via
 [`yfinance`](https://pypi.org/project/yfinance/)** (Yahoo Finance). That data is
 provided by a third party and is outside the maintainers' control. Treat any
 externally fetched data as untrusted input, validate it before use in

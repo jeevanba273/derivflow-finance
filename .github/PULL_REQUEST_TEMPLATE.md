@@ -16,12 +16,12 @@ Closes #<!-- issue number -->
 
 ## Checklist
 
-- [ ] Tests pass locally (`pytest`)
-- [ ] Code formatted and type-checked (`black .` and `mypy`)
+- [ ] Tests pass locally (`pytest`), including new tests for the change
+- [ ] Lint and formatting pass (`ruff check .` and `ruff format --check .`)
 - [ ] Documentation updated for any user-facing changes
 - [ ] CHANGELOG entry added
 - [ ] Notebook outputs cleared (if notebooks were modified)
-- [ ] Commit messages contain no AI/assistant references
+- [ ] Numbers added to docs or the README come from a script in the repository
 
 ## Additional notes
 

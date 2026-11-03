@@ -1,7 +1,8 @@
-# Contributing to DERIVFLOW-FINANCE
+# Contributing to derivflow
 
-Thanks for your interest in improving DERIVFLOW-FINANCE. This guide covers the
-development setup, testing, and release process.
+Bug reports, fixes and new tests are welcome. A wrong number is the most useful kind of bug
+report: please include the inputs, the value you got, the value you expected and where the
+expected value comes from (a paper, a textbook or another library).
 
 ## Development setup
 
@@ -9,65 +10,67 @@ development setup, testing, and release process.
 git clone https://github.com/jeevanba273/derivflow-finance.git
 cd derivflow-finance
 python -m venv .venv
-# Windows: .venv\Scripts\activate   |   Unix: source .venv/bin/activate
-pip install -e ".[dev,testing]"
+# Windows: .venv\Scripts\activate    Linux/macOS: source .venv/bin/activate
+pip install -e ".[dev,docs]"
 ```
 
-Optional extras: `.[docs]` (Sphinx docs), `.[notebooks]` (Jupyter), `.[visualization]`.
+`[dev]` installs the test tools, ruff, build, the `data` and `plot` extras, and the reference
+libraries used by the cross-checks (QuantLib and py_vollib).
 
-## Running the tests
+## Tests
 
 ```bash
-pytest                                   # full suite
-pytest -m "not slow and not integration" # fast lane (what CI gates on)
-pytest -m slow                           # Monte Carlo / Heston statistical tests
-pytest -m integration                    # live yfinance tests (needs internet)
-pytest --cov=derivflow --cov-report=term-missing
+pytest                       # full suite; network tests are skipped
+pytest -m "not slow"         # skip the few longer Monte Carlo tests
+pytest --run-network         # also run the tests that call Yahoo Finance
+pytest --cov=derivflow       # with coverage
 ```
 
-Markers: `slow` for Monte Carlo / Heston tests, `integration` for tests that hit the
-network. Both are excluded from the fast lane.
+The cross-check tests skip themselves when QuantLib or py_vollib is not installed. Tests must
+not use the network unless they are marked `network`.
 
-## Code style and types
+A change to a numerical routine should come with a test against a value that does not come
+from this code: a published reference value, a QuantLib engine, a finite difference of an
+independent price function, or a statistical check of a Monte Carlo estimate against a closed
+form.
+
+## Lint and format
 
 ```bash
-black .                 # formatting (line length 88)
-flake8 src tests        # linting
-mypy src/derivflow      # type checking
+ruff check .
+ruff format .
 ```
 
-New public functions should carry NumPy-style docstrings (`Parameters:` / `Returns:`) and
-type hints. Please do not add decorative emojis to source, output, or docs; mathematical
-and Greek symbols are welcome where they aid clarity.
+## Documentation
 
-## Branching and pull requests
+```bash
+sphinx-build -W -b html docs docs/_build/html
+python docs/snippets.py README.md docs/*.md docs/user-guide/*.md   # refresh printed outputs
+```
 
-- Branch off `main`; never commit directly to `main`.
-- Open a pull request into `main` and fill in the PR template.
-- Keep commit messages professional and concise, written as a human developer would. Do
-  not include AI/automation references or `Co-Authored-By` trailers (see `CLAUDE.md`).
-- Add or update tests for behavior changes, update the docs, and add a `CHANGELOG.md`
-  entry under the unreleased section.
+Code blocks in the README and the docs are executed by `tests/test_docs.py`. Any number in the
+README, the docs, docstrings or the changelog must come from code in this repository; the
+validation and benchmark tables are produced by:
+
+```bash
+python benchmarks/validation_report.py --output benchmarks/validation.md
+python benchmarks/run_benchmarks.py --output benchmarks/results.md --json benchmarks/results.json
+```
+
+## Pull requests
+
+- Branch off `main` and open a pull request into `main`.
+- Keep commits small and focused, with plain messages that describe the change.
+- Add tests, update the docs and add an entry under "Unreleased" in `CHANGELOG.md`.
 
 ## Releases
 
-Versioning is driven by Git tags via `setuptools_scm` (the version is written to
-`src/derivflow/_version.py`). To cut a release:
-
-1. Update `CHANGELOG.md` with the new version and date.
-2. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-3. The `publish.yml` workflow builds the distributions and uploads them to PyPI using
-   Trusted Publishing (no API token required).
-
-### One-time PyPI Trusted Publisher setup (maintainers)
-
-On PyPI, open the `derivflow-finance` project, go to Publishing, and add a GitHub Actions
-trusted publisher: owner `jeevanba273`, repository `derivflow-finance`, workflow
-`publish.yml`, environment `pypi`. After this, tagged releases publish automatically with
-no stored secret. If you prefer a token instead, store a project-scoped token as the
-`PYPI_API_TOKEN` secret and pass it to `pypa/gh-action-pypi-publish`.
+1. Set the new version in `pyproject.toml` and move the changelog entries under it.
+2. Merge into `main`, then tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. `.github/workflows/publish.yml` builds the sdist and wheel, checks that the tag matches the
+   package version and uploads to PyPI with Trusted Publishing (no API token is stored).
 
 ## Reporting issues
 
-Use the GitHub issue templates for bug reports and feature requests. For security
-concerns, follow `SECURITY.md` (report privately, do not open a public issue).
+Use the GitHub issue templates. For security concerns follow `SECURITY.md` and report
+privately.

@@ -172,3 +172,18 @@ def test_load_market_data_accepts_chain_rows_and_skips_unsolved_quotes():
     surface.load_market_data([{**row, "volume": 5, "open_interest": 7} for row in rows])
     assert len(surface.vol_data) == 3
     assert all(p.volatility == pytest.approx(0.25, abs=1e-9) for p in surface.vol_data)
+
+
+@pytest.mark.parametrize("method", ["rbf", "linear"])
+def test_duplicate_quotes_at_one_point_are_averaged(method):
+    """A call and a put at the same strike and expiry give two quotes for one
+    point; the surface uses their average instead of failing."""
+    from derivflow.volatility.surface import VolatilitySurface
+
+    surface = VolatilitySurface(method=method)
+    for K in (90.0, 100.0, 110.0):
+        for T in (0.1, 0.5):
+            surface.add_volatility_point(K, T, 0.20)
+            surface.add_volatility_point(K, T, 0.22)
+    surface.build_surface()
+    assert surface.interpolate(100.0, 0.1) == pytest.approx(0.21, abs=1e-9)

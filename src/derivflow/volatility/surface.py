@@ -156,8 +156,15 @@ class VolatilitySurface:
         - 'rbf': thin-plate-spline radial basis function interpolation with no
           smoothing (``scipy.interpolate.RBFInterpolator``), so the surface
           passes through every quote.
+
+        Several quotes at the same (strike, expiry), e.g. a call and a put,
+        are replaced by their average volatility before interpolating.
         """
         strikes, expiries, volatilities = self._prepare_data_arrays()
+        keys, inverse = np.unique(np.column_stack((strikes, expiries)), axis=0, return_inverse=True)
+        inverse = np.asarray(inverse).ravel()
+        volatilities = np.bincount(inverse, weights=volatilities) / np.bincount(inverse)
+        strikes, expiries = keys[:, 0], keys[:, 1]
         log_k = np.log(strikes)
         self._scale = (
             float(np.ptp(log_k)) or 1.0,

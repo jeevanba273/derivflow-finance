@@ -226,9 +226,10 @@ class BarrierOptions:
         elif barrier_type.lower() in ["up_and_out", "up_and_in"]:
             if S >= H:
                 return 0.0  # Already hit
-            # Probability of not hitting up barrier
+            # Probability of not hitting up barrier: the reflection term carries
+            # exp(2 mu b / sigma^2) = (H/S)^(2 mu / sigma^2) with b = ln(H/S).
             d = (np.log(H / S) - mu * T) / (sigma * np.sqrt(T))
-            prob = stats.norm.cdf(d) - (S / H) ** (2 * mu / sigma**2) * stats.norm.cdf(
+            prob = stats.norm.cdf(d) - (H / S) ** (2 * mu / sigma**2) * stats.norm.cdf(
                 d - 2 * np.log(H / S) / (sigma * np.sqrt(T))
             )
 

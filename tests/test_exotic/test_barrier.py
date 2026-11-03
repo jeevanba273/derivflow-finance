@@ -71,3 +71,61 @@ def test_breached_knock_in_never_exceeds_vanilla(bs_ref):
         warnings.simplefilter("ignore")
         for H in (101, 105, 110, 130):
             assert _price("down_and_in", H) <= vanilla + 1e-9
+
+
+def _no_touch_probability(S, H, T, r, sigma):
+    """Risk-neutral probability that GBM started at S does not touch H before T.
+
+    Reflection principle for X_t = mu t + sigma W_t with mu = r - sigma^2 / 2
+    (e.g. Shreve, Stochastic Calculus for Finance II, section 7.2).
+    """
+    import numpy as np
+    from scipy.stats import norm
+
+    mu = r - 0.5 * sigma**2
+    st = sigma * np.sqrt(T)
+    if H > S:  # running maximum stays below b = ln(H/S) > 0
+        b = np.log(H / S)
+        return norm.cdf((b - mu * T) / st) - np.exp(2 * mu * b / sigma**2) * norm.cdf(
+            (-b - mu * T) / st
+        )
+    a = np.log(S / H)  # running minimum stays above -a < 0
+    return norm.cdf((a + mu * T) / st) - np.exp(-2 * mu * a / sigma**2) * norm.cdf(
+        (-a + mu * T) / st
+    )
+
+
+@pytest.mark.parametrize(
+    ("barrier_type", "H"),
+    [("down_and_out", 90), ("down_and_in", 80), ("up_and_out", 110), ("up_and_in", 130)],
+)
+def test_survival_probability_matches_reflection_principle(barrier_type, H):
+    res = barrier.price(100, 100, H, 1.0, 0.05, 0.2, barrier_type, "call")
+    assert res.probability_survival == pytest.approx(
+        _no_touch_probability(100, H, 1.0, 0.05, 0.2), abs=1e-12
+    )
+
+
+@pytest.mark.parametrize("H", [90.0, 110.0])
+def test_survival_probability_matches_monte_carlo(H):
+    """Discretely monitored no-touch frequency vs the continuous formula evaluated
+    at the Broadie-Glasserman-Kou (1997) shifted barrier H * exp(+-0.5826 sigma sqrt(dt))."""
+    import numpy as np
+
+    S, T, r, sigma, steps, paths = 100.0, 1.0, 0.05, 0.2, 250, 200_000
+    dt = T / steps
+    rng = np.random.default_rng(2024)
+    log_s = np.zeros(paths)
+    touched = np.zeros(paths, dtype=bool)
+    log_h = np.log(H / S)
+    for _ in range(steps):
+        log_s += (r - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * rng.standard_normal(paths)
+        touched |= (log_s >= log_h) if H > S else (log_s <= log_h)
+    p_mc = 1.0 - touched.mean()
+    se = np.sqrt(p_mc * (1 - p_mc) / paths)
+    shift = np.exp(0.5826 * sigma * np.sqrt(dt))
+    H_eff = H * shift if H > S else H / shift
+    bt = "up_and_out" if H > S else "down_and_out"
+    p_formula = barrier.price(S, 100.0, H_eff, T, r, sigma, bt, "call").probability_survival
+    assert abs(p_mc - p_formula) < 4 * se + 2e-3
+

@@ -14,8 +14,9 @@ from derivflow import price_european_option
 
 call = price_european_option(S=100, K=105, T=0.25, r=0.05, sigma=0.2, option_type="call")
 put = price_european_option(S=100, K=105, T=0.25, r=0.05, sigma=0.2, option_type="put")
-div_call = price_european_option(S=100, K=105, T=0.25, r=0.05, sigma=0.2,
-                                 option_type="call", q=0.03)
+div_call = price_european_option(
+    S=100, K=105, T=0.25, r=0.05, sigma=0.2, option_type="call", q=0.03
+)
 
 print(f"Call: {call:.4f}  Put: {put:.4f}  Call (q=3%): {div_call:.4f}")
 ```
@@ -60,8 +61,9 @@ print(f"Recovered implied vol: {iv:.4f}")  # ~0.25
 from derivflow import BarrierOptions
 
 barrier = BarrierOptions()
-result = barrier.price(S=100, K=105, H=95, T=0.25, r=0.05, sigma=0.3,
-                       barrier_type="down_and_out", option_type="call")
+result = barrier.price(
+    S=100, K=105, H=95, T=0.25, r=0.05, sigma=0.3, barrier_type="down_and_out", option_type="call"
+)
 
 print(f"Barrier price:        {result.price:.4f}")
 print(f"Survival probability: {result.probability_survival:.2%}")

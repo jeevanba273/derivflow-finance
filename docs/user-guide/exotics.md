@@ -14,9 +14,17 @@ simulates GBM paths and checks the barrier along each path.
 from derivflow import BarrierOptions
 
 barrier = BarrierOptions(random_seed=42)
-result = barrier.price(S=100, K=105, H=95, T=0.25, r=0.05, sigma=0.3,
-                       barrier_type="down_and_out", option_type="call",
-                       method="analytical")
+result = barrier.price(
+    S=100,
+    K=105,
+    H=95,
+    T=0.25,
+    r=0.05,
+    sigma=0.3,
+    barrier_type="down_and_out",
+    option_type="call",
+    method="analytical",
+)
 
 print(f"Price:                {result.price:.4f}")
 print(f"Survival probability: {result.probability_survival:.2%}")
@@ -38,13 +46,15 @@ arithmetic to Monte Carlo automatically. The `price_asian_option` and
 from derivflow import AsianOptions, price_asian_option, compare_asian_types
 
 asian = AsianOptions(num_sims=50000, random_seed=42)
-geo = asian.price(S=100, K=100, T=0.25, r=0.05, sigma=0.3,
-                  option_type="call", asian_type="geometric")
+geo = asian.price(
+    S=100, K=100, T=0.25, r=0.05, sigma=0.3, option_type="call", asian_type="geometric"
+)
 print(f"Geometric Asian call: {geo.price:.4f}")
 
 # Quick helper returns just the float price
-arith = price_asian_option(S=100, K=100, T=0.25, r=0.05, sigma=0.3,
-                           option_type="call", asian_type="arithmetic")
+arith = price_asian_option(
+    S=100, K=100, T=0.25, r=0.05, sigma=0.3, option_type="call", asian_type="arithmetic"
+)
 print(f"Arithmetic Asian call: {arith:.4f}")
 
 print(compare_asian_types(S=100, K=100, T=0.25, r=0.05, sigma=0.3, option_type="call"))

@@ -6,12 +6,12 @@ The foundation of all derivatives pricing in the platform.
 Supports multiple pricing methodologies with validation.
 """
 
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+
 import numpy as np
 import scipy.stats as stats
-from scipy.optimize import minimize
-from typing import Union, Dict, List, Optional, Callable
-import warnings
-from abc import ABC, abstractmethod
+
 
 class PricingMethod(ABC):
     """Abstract base class for all pricing methods"""
@@ -20,6 +20,7 @@ class PricingMethod(ABC):
     def price(self, **kwargs) -> float:
         """Price an instrument using this method"""
         pass
+
 
 class BlackScholesAnalytical(PricingMethod):
     """
@@ -39,8 +40,16 @@ class BlackScholesAnalytical(PricingMethod):
         """Calculate d2 parameter (generalized for continuous dividend yield q)"""
         return BlackScholesAnalytical._d1(S, K, T, r, sigma, q) - sigma * np.sqrt(T)
 
-    def price(self, S: float, K: float, T: float, r: float, sigma: float,
-              option_type: str = 'call', q: float = 0.0) -> float:
+    def price(
+        self,
+        S: float,
+        K: float,
+        T: float,
+        r: float,
+        sigma: float,
+        option_type: str = "call",
+        q: float = 0.0,
+    ) -> float:
         """
         Price European option using the (generalized) Black-Scholes-Merton formula
 
@@ -68,7 +77,7 @@ class BlackScholesAnalytical(PricingMethod):
         """
         if T <= 0:
             # Handle expiry
-            if option_type.lower() == 'call':
+            if option_type.lower() == "call":
                 return max(S - K, 0)
             else:
                 return max(K - S, 0)
@@ -77,14 +86,15 @@ class BlackScholesAnalytical(PricingMethod):
         d2 = self._d2(S, K, T, r, sigma, q)
         discount_S = S * np.exp(-q * T)
 
-        if option_type.lower() == 'call':
+        if option_type.lower() == "call":
             price = discount_S * stats.norm.cdf(d1) - K * np.exp(-r * T) * stats.norm.cdf(d2)
-        elif option_type.lower() == 'put':
+        elif option_type.lower() == "put":
             price = K * np.exp(-r * T) * stats.norm.cdf(-d2) - discount_S * stats.norm.cdf(-d1)
         else:
             raise ValueError("option_type must be 'call' or 'put'")
 
         return max(price, 0)  # Ensure non-negative price
+
 
 class BinomialTree(PricingMethod):
     """
@@ -105,8 +115,16 @@ class BinomialTree(PricingMethod):
         """
         self.steps = steps
 
-    def price(self, S: float, K: float, T: float, r: float, sigma: float,
-              option_type: str = 'call', american: bool = False) -> float:
+    def price(
+        self,
+        S: float,
+        K: float,
+        T: float,
+        r: float,
+        sigma: float,
+        option_type: str = "call",
+        american: bool = False,
+    ) -> float:
         """
         Price option using binomial tree
 
@@ -141,12 +159,12 @@ class BinomialTree(PricingMethod):
         # Initialize asset prices at expiry
         asset_prices = np.zeros(self.steps + 1)
         for i in range(self.steps + 1):
-            asset_prices[i] = S * (u ** (self.steps - i)) * (d ** i)
+            asset_prices[i] = S * (u ** (self.steps - i)) * (d**i)
 
         # Initialize option values at expiry
         option_values = np.zeros(self.steps + 1)
         for i in range(self.steps + 1):
-            if option_type.lower() == 'call':
+            if option_type.lower() == "call":
                 option_values[i] = max(asset_prices[i] - K, 0)
             else:
                 option_values[i] = max(K - asset_prices[i], 0)
@@ -161,8 +179,8 @@ class BinomialTree(PricingMethod):
 
                 if american:
                     # Calculate intrinsic value for American option
-                    current_asset_price = S * (u ** (step - i)) * (d ** i)
-                    if option_type.lower() == 'call':
+                    current_asset_price = S * (u ** (step - i)) * (d**i)
+                    if option_type.lower() == "call":
                         intrinsic_value = max(current_asset_price - K, 0)
                     else:
                         intrinsic_value = max(K - current_asset_price, 0)
@@ -175,6 +193,7 @@ class BinomialTree(PricingMethod):
 
         return option_values[0]
 
+
 class MonteCarloEngine(PricingMethod):
     """
     Monte Carlo pricing engine with variance reduction techniques
@@ -183,7 +202,7 @@ class MonteCarloEngine(PricingMethod):
     Includes antithetic variates and control variates.
     """
 
-    def __init__(self, num_sims: int = 100000, random_seed: Optional[int] = None):
+    def __init__(self, num_sims: int = 100000, random_seed: int | None = None):
         """
         Initialize Monte Carlo engine
 
@@ -198,8 +217,9 @@ class MonteCarloEngine(PricingMethod):
         if random_seed is not None:
             np.random.seed(random_seed)
 
-    def generate_gbm_paths(self, S0: float, T: float, r: float, sigma: float,
-                          num_steps: int = 252) -> np.ndarray:
+    def generate_gbm_paths(
+        self, S0: float, T: float, r: float, sigma: float, num_steps: int = 252
+    ) -> np.ndarray:
         """
         Generate Geometric Brownian Motion paths
 
@@ -235,8 +255,16 @@ class MonteCarloEngine(PricingMethod):
 
         return paths
 
-    def price(self, S: float, K: float, T: float, r: float, sigma: float,
-              option_type: str = 'call', payoff_func: Optional[Callable] = None) -> Dict[str, float]:
+    def price(
+        self,
+        S: float,
+        K: float,
+        T: float,
+        r: float,
+        sigma: float,
+        option_type: str = "call",
+        payoff_func: Callable | None = None,
+    ) -> dict[str, float]:
         """
         Price option using Monte Carlo simulation
 
@@ -271,9 +299,9 @@ class MonteCarloEngine(PricingMethod):
         if payoff_func:
             payoffs = payoff_func(final_prices, K)
         else:
-            if option_type.lower() == 'call':
+            if option_type.lower() == "call":
                 payoffs = np.maximum(final_prices - K, 0)
-            elif option_type.lower() == 'put':
+            elif option_type.lower() == "put":
                 payoffs = np.maximum(K - final_prices, 0)
             else:
                 raise ValueError("option_type must be 'call' or 'put'")
@@ -284,17 +312,15 @@ class MonteCarloEngine(PricingMethod):
         # Calculate statistics
         price = np.mean(discounted_payoffs)
         std_error = np.std(discounted_payoffs) / np.sqrt(self.num_sims)
-        confidence_interval = (
-            price - 1.96 * std_error,
-            price + 1.96 * std_error
-        )
+        confidence_interval = (price - 1.96 * std_error, price + 1.96 * std_error)
 
         return {
-            'price': price,
-            'std_error': std_error,
-            'confidence_interval': confidence_interval,
-            'num_simulations': self.num_sims
+            "price": price,
+            "std_error": std_error,
+            "confidence_interval": confidence_interval,
+            "num_simulations": self.num_sims,
         }
+
 
 class PricingEngine:
     """
@@ -307,15 +333,23 @@ class PricingEngine:
     def __init__(self):
         """Initialize pricing engine with available methods"""
         self.methods = {
-            'black_scholes': BlackScholesAnalytical(),
-            'binomial': BinomialTree(),
-            'monte_carlo': MonteCarloEngine()
+            "black_scholes": BlackScholesAnalytical(),
+            "binomial": BinomialTree(),
+            "monte_carlo": MonteCarloEngine(),
         }
         self.results_cache = {}
 
-    def price_option(self, method: str, S: float, K: float, T: float,
-                    r: float, sigma: float, option_type: str = 'call',
-                    **kwargs) -> Union[float, Dict]:
+    def price_option(
+        self,
+        method: str,
+        S: float,
+        K: float,
+        T: float,
+        r: float,
+        sigma: float,
+        option_type: str = "call",
+        **kwargs,
+    ) -> float | dict:
         """
         Price option using specified method
 
@@ -359,8 +393,7 @@ class PricingEngine:
 
         try:
             result = pricing_method.price(
-                S=S, K=K, T=T, r=r, sigma=sigma,
-                option_type=option_type, **kwargs
+                S=S, K=K, T=T, r=r, sigma=sigma, option_type=option_type, **kwargs
             )
 
             # Cache result
@@ -369,11 +402,18 @@ class PricingEngine:
             return result
 
         except Exception as e:
-            raise ValueError(f"Pricing failed with method {method}: {str(e)}")
+            raise ValueError(f"Pricing failed with method {method}: {e!s}")
 
-    def compare_methods(self, S: float, K: float, T: float, r: float,
-                       sigma: float, option_type: str = 'call',
-                       methods: Optional[List[str]] = None) -> Dict[str, Dict]:
+    def compare_methods(
+        self,
+        S: float,
+        K: float,
+        T: float,
+        r: float,
+        sigma: float,
+        option_type: str = "call",
+        methods: list[str] | None = None,
+    ) -> dict[str, dict]:
         """
         Compare prices across multiple methods
 
@@ -407,23 +447,22 @@ class PricingEngine:
         for method in methods:
             try:
                 result = self.price_option(
-                    method=method, S=S, K=K, T=T, r=r,
-                    sigma=sigma, option_type=option_type
+                    method=method, S=S, K=K, T=T, r=r, sigma=sigma, option_type=option_type
                 )
 
                 if isinstance(result, dict):
                     results[method] = result
                 else:
-                    results[method] = {'price': result}
+                    results[method] = {"price": result}
 
             except Exception as e:
-                results[method] = {'error': str(e)}
+                results[method] = {"error": str(e)}
 
         return results
 
-    def validate_put_call_parity(self, S: float, K: float, T: float,
-                                r: float, sigma: float,
-                                method: str = 'black_scholes') -> Dict[str, float]:
+    def validate_put_call_parity(
+        self, S: float, K: float, T: float, r: float, sigma: float, method: str = "black_scholes"
+    ) -> dict[str, float]:
         """
         Validate put-call parity: C - P = S - K*e^(-rT)
 
@@ -449,38 +488,46 @@ class PricingEngine:
         """
         # Price call and put
         call_price = self.price_option(
-            method=method, S=S, K=K, T=T, r=r, sigma=sigma, option_type='call'
+            method=method, S=S, K=K, T=T, r=r, sigma=sigma, option_type="call"
         )
         put_price = self.price_option(
-            method=method, S=S, K=K, T=T, r=r, sigma=sigma, option_type='put'
+            method=method, S=S, K=K, T=T, r=r, sigma=sigma, option_type="put"
         )
 
         # Extract prices if Monte Carlo results
         if isinstance(call_price, dict):
-            call_price = call_price['price']
+            call_price = call_price["price"]
         if isinstance(put_price, dict):
-            put_price = put_price['price']
+            put_price = put_price["price"]
 
         # Calculate put-call parity components
         left_side = call_price - put_price
         right_side = S - K * np.exp(-r * T)
         error = abs(left_side - right_side)
-        relative_error = error / abs(right_side) if right_side != 0 else float('inf')
+        relative_error = error / abs(right_side) if right_side != 0 else float("inf")
 
         return {
-            'call_price': call_price,
-            'put_price': put_price,
-            'left_side': left_side,
-            'right_side': right_side,
-            'absolute_error': error,
-            'relative_error': relative_error,
-            'parity_satisfied': error < 1e-6
+            "call_price": call_price,
+            "put_price": put_price,
+            "left_side": left_side,
+            "right_side": right_side,
+            "absolute_error": error,
+            "relative_error": relative_error,
+            "parity_satisfied": error < 1e-6,
         }
 
+
 # Module-level convenience functions
-def price_european_option(S: float, K: float, T: float, r: float, sigma: float,
-                         option_type: str = 'call', method: str = 'black_scholes',
-                         q: float = 0.0) -> float:
+def price_european_option(
+    S: float,
+    K: float,
+    T: float,
+    r: float,
+    sigma: float,
+    option_type: str = "call",
+    method: str = "black_scholes",
+    q: float = 0.0,
+) -> float:
     """
     Convenience function to price European option
 
@@ -512,8 +559,8 @@ def price_european_option(S: float, K: float, T: float, r: float, sigma: float,
     """
     engine = PricingEngine()
     kwargs = {}
-    if method == 'black_scholes':
-        kwargs['q'] = q
+    if method == "black_scholes":
+        kwargs["q"] = q
     elif q != 0.0:
         raise ValueError(
             f"Dividend yield q is only supported by method='black_scholes', not '{method}'"
@@ -521,8 +568,9 @@ def price_european_option(S: float, K: float, T: float, r: float, sigma: float,
     result = engine.price_option(method, S, K, T, r, sigma, option_type, **kwargs)
 
     if isinstance(result, dict):
-        return result['price']
+        return result["price"]
     return result
+
 
 if __name__ == "__main__":
     # Example usage and testing
@@ -539,13 +587,13 @@ if __name__ == "__main__":
     print("-" * 50)
 
     # Compare all methods
-    comparison = engine.compare_methods(S, K, T, r, sigma, 'call')
+    comparison = engine.compare_methods(S, K, T, r, sigma, "call")
 
     for method, result in comparison.items():
-        if 'error' in result:
+        if "error" in result:
             print(f"{method:15s}: ERROR - {result['error']}")
         else:
-            price = result.get('price', result)
+            price = result.get("price", result)
             if isinstance(price, float):
                 print(f"{method:15s}: ${price:.4f}")
             else:
@@ -555,7 +603,7 @@ if __name__ == "__main__":
 
     # Validate put-call parity
     parity_check = engine.validate_put_call_parity(S, K, T, r, sigma)
-    print(f"Put-Call Parity Validation:")
+    print("Put-Call Parity Validation:")
     print(f"   Call Price: ${parity_check['call_price']:.6f}")
     print(f"   Put Price:  ${parity_check['put_price']:.6f}")
     print(f"   Error:      {parity_check['absolute_error']:.8f}")

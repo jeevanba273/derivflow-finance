@@ -2,8 +2,8 @@
 
 import pytest
 
-from derivflow.models.heston import HestonModel
 from derivflow.core.pricing_engine import price_european_option
+from derivflow.models.heston import HestonModel
 
 
 def test_feller_condition_warns():
@@ -33,6 +33,6 @@ def test_mc_approaches_black_scholes_low_vol_of_vol():
     model = HestonModel()
     # Low vol-of-vol, zero correlation, v0=theta -> close to BS at sqrt(v0).
     model.set_parameters(v0=0.04, kappa=2.0, theta=0.04, sigma=0.05, rho=0.0)
-    res = model.monte_carlo_price(100, 100, 1.0, 0.05, 'call', num_sims=100000, num_steps=252)
-    bs = price_european_option(100, 100, 1.0, 0.05, 0.2, 'call')
+    res = model.monte_carlo_price(100, 100, 1.0, 0.05, "call", num_sims=100000, num_steps=252)
+    bs = price_european_option(100, 100, 1.0, 0.05, 0.2, "call")
     assert res.price == pytest.approx(bs, abs=0.3)

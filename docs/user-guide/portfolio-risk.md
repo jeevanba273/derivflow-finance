@@ -35,8 +35,15 @@ To build a portfolio from scratch:
 ```python
 p = PortfolioRiskAnalyzer(risk_free_rate=0.05)
 p.add_stock_position("AAPL", quantity=100, current_price=150.0, volatility=0.25)
-p.add_option_position("AAPL", quantity=10, current_price=150.0, strike=155.0,
-                      expiry=0.25, option_type="call", volatility=0.25)
+p.add_option_position(
+    "AAPL",
+    quantity=10,
+    current_price=150.0,
+    strike=155.0,
+    expiry=0.25,
+    option_type="call",
+    volatility=0.25,
+)
 ```
 
 **Key result fields.** `calculate_portfolio_greeks` returns a dict with `delta`,

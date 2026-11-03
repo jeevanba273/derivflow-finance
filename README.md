@@ -95,10 +95,12 @@ from derivflow.exotic import BarrierOptions, AsianOptions
 from derivflow.portfolio import PortfolioRiskAnalyzer
 
 # 1. Price European options with multiple methods
-call_bs = price_european_option(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
-                               method='black_scholes', option_type='call')
-call_mc = price_european_option(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
-                               method='monte_carlo', option_type='call')
+call_bs = price_european_option(
+    S=100, K=105, T=0.25, r=0.05, sigma=0.25, method="black_scholes", option_type="call"
+)
+call_mc = price_european_option(
+    S=100, K=105, T=0.25, r=0.05, sigma=0.25, method="monte_carlo", option_type="call"
+)
 print(f"Black-Scholes: ${call_bs:.4f} | Monte Carlo: ${call_mc:.4f}")
 
 # 2. Complete Greeks analysis with advanced sensitivities
@@ -109,19 +111,21 @@ print(f"Volga: {greeks.volga:.4f} | Vanna: {greeks.vanna:.4f}")
 
 # 3. Exotic options with variance reduction
 barrier = BarrierOptions()
-result = barrier.price(S=100, K=105, H=95, T=0.25, r=0.05, sigma=0.25,
-                      barrier_type='down_and_out', option_type='call')
+result = barrier.price(
+    S=100, K=105, H=95, T=0.25, r=0.05, sigma=0.25, barrier_type="down_and_out", option_type="call"
+)
 print(f"Barrier Option: ${result.price:.4f} (Survival: {result.probability_survival:.1%})")
 
 asian = AsianOptions()
-result = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
-                    option_type='call', asian_type='arithmetic')
+result = asian.price(
+    S=100, K=105, T=0.25, r=0.05, sigma=0.25, option_type="call", asian_type="arithmetic"
+)
 print(f"Asian Option: ${result.price:.4f} ± {result.std_error:.4f}")
 
 # 4. Professional portfolio risk analysis
 portfolio = PortfolioRiskAnalyzer()
-portfolio.add_stock_position('AAPL', 100, 150.0, 0.25)
-portfolio.add_option_position('AAPL', 10, 150.0, 155.0, 0.25, 'call', 0.25)
+portfolio.add_stock_position("AAPL", 100, 150.0, 0.25)
+portfolio.add_option_position("AAPL", 10, 150.0, 155.0, 0.25, "call", 0.25)
 
 portfolio_value = portfolio.calculate_portfolio_value()
 var_95, es_95 = portfolio.calculate_var_parametric(0.95)
@@ -281,10 +285,11 @@ from derivflow.core import price_european_option
 from derivflow.greeks import GreeksCalculator
 
 # Multi-method pricing comparison
-methods = ['black_scholes', 'binomial', 'monte_carlo']
+methods = ["black_scholes", "binomial", "monte_carlo"]
 for method in methods:
-    price = price_european_option(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
-                                 method=method, option_type='call')
+    price = price_european_option(
+        S=100, K=105, T=0.25, r=0.05, sigma=0.25, method=method, option_type="call"
+    )
     print(f"{method.title()}: ${price:.4f}")
 
 # Complete Greeks analysis
@@ -305,13 +310,20 @@ from derivflow.exotic import BarrierOptions, AsianOptions
 
 # Barrier options with all variants
 barrier = BarrierOptions()
-barrier_types = ['down_and_out', 'up_and_out', 'down_and_in', 'up_and_in']
+barrier_types = ["down_and_out", "up_and_out", "down_and_in", "up_and_in"]
 
 print("Barrier Options Suite:")
 for barrier_type in barrier_types:
-    result = barrier.price(S=100, K=105, H=95 if 'down' in barrier_type else 115,
-                          T=0.25, r=0.05, sigma=0.25,
-                          barrier_type=barrier_type, option_type='call')
+    result = barrier.price(
+        S=100,
+        K=105,
+        H=95 if "down" in barrier_type else 115,
+        T=0.25,
+        r=0.05,
+        sigma=0.25,
+        barrier_type=barrier_type,
+        option_type="call",
+    )
     print(f"{barrier_type}: ${result.price:.4f} (Survival: {result.probability_survival:.1%})")
 
 # Asian options with variance reduction
@@ -319,15 +331,19 @@ asian = AsianOptions()
 print(f"\nAsian Options with Variance Reduction:")
 
 # Geometric (analytical)
-geo_result = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
-                        option_type='call', asian_type='geometric')
+geo_result = asian.price(
+    S=100, K=105, T=0.25, r=0.05, sigma=0.25, option_type="call", asian_type="geometric"
+)
 print(f"Geometric: ${geo_result.price:.4f} (Analytical)")
 
 # Arithmetic with control variates
-arith_result = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
-                          option_type='call', asian_type='arithmetic')
+arith_result = asian.price(
+    S=100, K=105, T=0.25, r=0.05, sigma=0.25, option_type="call", asian_type="arithmetic"
+)
 print(f"Arithmetic: ${arith_result.price:.4f} ± {arith_result.std_error:.4f}")
-print(f"Variance Reduction: {arith_result.convergence_info['variance_reduction_ratio']:.0f}x improvement!")
+print(
+    f"Variance Reduction: {arith_result.convergence_info['variance_reduction_ratio']:.0f}x improvement!"
+)
 ```
 
 **Professional Portfolio Risk Management:**
@@ -339,11 +355,25 @@ from derivflow.portfolio import PortfolioRiskAnalyzer
 portfolio = PortfolioRiskAnalyzer()
 
 # Add multiple positions
-portfolio.add_stock_position('AAPL', quantity=100, current_price=150.0, volatility=0.25)
-portfolio.add_option_position('AAPL', quantity=10, current_price=150.0,
-                             strike=155.0, expiry=0.25, option_type='call', volatility=0.25)
-portfolio.add_option_position('AAPL', quantity=-5, current_price=150.0,
-                             strike=145.0, expiry=0.25, option_type='put', volatility=0.25)
+portfolio.add_stock_position("AAPL", quantity=100, current_price=150.0, volatility=0.25)
+portfolio.add_option_position(
+    "AAPL",
+    quantity=10,
+    current_price=150.0,
+    strike=155.0,
+    expiry=0.25,
+    option_type="call",
+    volatility=0.25,
+)
+portfolio.add_option_position(
+    "AAPL",
+    quantity=-5,
+    current_price=150.0,
+    strike=145.0,
+    expiry=0.25,
+    option_type="put",
+    volatility=0.25,
+)
 
 # Comprehensive risk analysis
 portfolio_value = portfolio.calculate_portfolio_value()
@@ -365,8 +395,8 @@ print(f"99% VaR: ${var_99:,.2f} | Expected Shortfall: ${es_99:,.2f}")
 
 # Scenario analysis
 scenarios = {
-    'Market Crash': {'AAPL': -0.20},
-    'Rally':        {'AAPL': 0.15},
+    "Market Crash": {"AAPL": -0.20},
+    "Rally": {"AAPL": 0.15},
 }
 results = portfolio.scenario_analysis(scenarios)
 for scenario_name, result in results.items():
@@ -726,25 +756,29 @@ from derivflow.core import price_european_option
 from derivflow.greeks import GreeksCalculator
 
 # Cross-validation with multiple pricing methods
-params = {'S': 100, 'K': 105, 'T': 0.25, 'r': 0.05, 'sigma': 0.25, 'option_type': 'call'}
+params = {"S": 100, "K": 105, "T": 0.25, "r": 0.05, "sigma": 0.25, "option_type": "call"}
 
 print("Multi-Method Pricing Cross-Validation:")
-bs_price = price_european_option(**params, method='black_scholes')
-binomial_price = price_european_option(**params, method='binomial')
-mc_price = price_european_option(**params, method='monte_carlo')
+bs_price = price_european_option(**params, method="black_scholes")
+binomial_price = price_european_option(**params, method="binomial")
+mc_price = price_european_option(**params, method="monte_carlo")
 
 print(f"Black-Scholes: ${bs_price:.4f}")
-print(f"Binomial Tree: ${binomial_price:.4f} (Δ: {abs(bs_price-binomial_price):.4f})")
-print(f"Monte Carlo:   ${mc_price:.4f} (±{mc_price*0.01:.4f})")
+print(f"Binomial Tree: ${binomial_price:.4f} (Δ: {abs(bs_price - binomial_price):.4f})")
+print(f"Monte Carlo:   ${mc_price:.4f} (±{mc_price * 0.01:.4f})")
 
 # Complete Greeks analysis with advanced sensitivities
 calc = GreeksCalculator()
 greeks = calc.calculate_greeks(**params)
 
 print(f"\nComplete Greeks Suite:")
-print(f"1st Order - Delta: {greeks.delta:.4f} | Theta: {greeks.theta:.4f} | Rho: {greeks.rho:.4f} | Vega: {greeks.vega:.4f}")
+print(
+    f"1st Order - Delta: {greeks.delta:.4f} | Theta: {greeks.theta:.4f} | Rho: {greeks.rho:.4f} | Vega: {greeks.vega:.4f}"
+)
 print(f"2nd Order - Gamma: {greeks.gamma:.4f}")
-print(f"3rd Order - Volga: {greeks.volga:.4f} | Vanna: {greeks.vanna:.4f} | Speed: {greeks.speed:.6f}")
+print(
+    f"3rd Order - Volga: {greeks.volga:.4f} | Vanna: {greeks.vanna:.4f} | Speed: {greeks.speed:.6f}"
+)
 ```
 
 ### **Institutional Exotic Options Suite**
@@ -758,52 +792,87 @@ barrier = BarrierOptions()
 print("Barrier Options Professional Suite:")
 
 barrier_configs = [
-    {'type': 'down_and_out', 'H': 95, 'description': 'Knock-out below $95'},
-    {'type': 'up_and_out', 'H': 115, 'description': 'Knock-out above $115'},
-    {'type': 'down_and_in', 'H': 95, 'description': 'Knock-in below $95'},
-    {'type': 'up_and_in', 'H': 115, 'description': 'Knock-in above $115'}
+    {"type": "down_and_out", "H": 95, "description": "Knock-out below $95"},
+    {"type": "up_and_out", "H": 115, "description": "Knock-out above $115"},
+    {"type": "down_and_in", "H": 95, "description": "Knock-in below $95"},
+    {"type": "up_and_in", "H": 115, "description": "Knock-in above $115"},
 ]
 
 for config in barrier_configs:
-    result = barrier.price(S=100, K=105, H=config['H'], T=0.25, r=0.05, sigma=0.25,
-                          barrier_type=config['type'], option_type='call')
-    print(f"{config['type'].replace('_', '-').title()}: ${result.price:.4f} | "
-          f"Survival: {result.probability_survival:.1%} | {config['description']}")
+    result = barrier.price(
+        S=100,
+        K=105,
+        H=config["H"],
+        T=0.25,
+        r=0.05,
+        sigma=0.25,
+        barrier_type=config["type"],
+        option_type="call",
+    )
+    print(
+        f"{config['type'].replace('_', '-').title()}: ${result.price:.4f} | "
+        f"Survival: {result.probability_survival:.1%} | {config['description']}"
+    )
 
 # Asian options with sophisticated variance reduction
 asian = AsianOptions(num_sims=50000)
 print(f"\nAsian Options with Advanced Algorithms:")
 
 # Geometric (closed-form analytical solution)
-geo_call = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
-                      option_type='call', asian_type='geometric')
-geo_put = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
-                     option_type='put', asian_type='geometric')
+geo_call = asian.price(
+    S=100, K=105, T=0.25, r=0.05, sigma=0.25, option_type="call", asian_type="geometric"
+)
+geo_put = asian.price(
+    S=100, K=105, T=0.25, r=0.05, sigma=0.25, option_type="put", asian_type="geometric"
+)
 
 print(f"Geometric Call: ${geo_call.price:.4f} (Analytical)")
 print(f"Geometric Put:  ${geo_put.price:.4f} (Analytical)")
 
 # Arithmetic with control variates (1496x variance reduction)
-arith_call = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
-                        option_type='call', asian_type='arithmetic',
-                        use_control_variate=True)
-arith_put = asian.price(S=100, K=105, T=0.25, r=0.05, sigma=0.25,
-                       option_type='put', asian_type='arithmetic',
-                       use_control_variate=True)
+arith_call = asian.price(
+    S=100,
+    K=105,
+    T=0.25,
+    r=0.05,
+    sigma=0.25,
+    option_type="call",
+    asian_type="arithmetic",
+    use_control_variate=True,
+)
+arith_put = asian.price(
+    S=100,
+    K=105,
+    T=0.25,
+    r=0.05,
+    sigma=0.25,
+    option_type="put",
+    asian_type="arithmetic",
+    use_control_variate=True,
+)
 
-print(f"Arithmetic Call: ${arith_call.price:.4f} ± {arith_call.std_error:.4f} (MC + Control Variates)")
-print(f"Arithmetic Put:  ${arith_put.price:.4f} ± {arith_put.std_error:.4f} (MC + Control Variates)")
-print(f"Variance Reduction: {arith_call.convergence_info['variance_reduction_ratio']:.0f}x improvement!")
+print(
+    f"Arithmetic Call: ${arith_call.price:.4f} ± {arith_call.std_error:.4f} (MC + Control Variates)"
+)
+print(
+    f"Arithmetic Put:  ${arith_put.price:.4f} ± {arith_put.std_error:.4f} (MC + Control Variates)"
+)
+print(
+    f"Variance Reduction: {arith_call.convergence_info['variance_reduction_ratio']:.0f}x improvement!"
+)
 
 # Advanced Heston stochastic volatility model
 print(f"\nHeston Stochastic Volatility Model:")
 heston = HestonModel()
 heston.set_parameters(v0=0.040, kappa=2.0, theta=0.040, sigma=0.3, rho=-0.7)
 
-heston_result = heston.price_option(S=100, K=105, T=0.25, r=0.05,
-                                   option_type='call', method='monte_carlo')
+heston_result = heston.price_option(
+    S=100, K=105, T=0.25, r=0.05, option_type="call", method="monte_carlo"
+)
 print(f"Heston Model Price: ${heston_result.price:.4f}")
-print(f"Model Parameters: v₀={heston.params.v0:.3f}, κ={heston.params.kappa:.1f}, θ={heston.params.theta:.3f}")
+print(
+    f"Model Parameters: v₀={heston.params.v0:.3f}, κ={heston.params.kappa:.1f}, θ={heston.params.theta:.3f}"
+)
 print(f"                  σᵥ={heston.params.sigma:.1f}, ρ={heston.params.rho:.1f}")
 ```
 
@@ -820,21 +889,52 @@ market_data = AdvancedMarketData()
 
 # Add diverse positions with live market data
 positions = [
-    {'type': 'stock', 'symbol': 'AAPL', 'quantity': 100, 'price': 150.0, 'vol': 0.25},
-    {'type': 'option', 'symbol': 'AAPL', 'quantity': 10, 'spot': 150.0, 'strike': 155.0,
-     'expiry': 0.25, 'option_type': 'call', 'vol': 0.25},
-    {'type': 'option', 'symbol': 'AAPL', 'quantity': -5, 'spot': 150.0, 'strike': 145.0,
-     'expiry': 0.25, 'option_type': 'put', 'vol': 0.25},
-    {'type': 'option', 'symbol': 'AAPL', 'quantity': -20, 'spot': 150.0, 'strike': 160.0,
-     'expiry': 0.5, 'option_type': 'call', 'vol': 0.23},
+    {"type": "stock", "symbol": "AAPL", "quantity": 100, "price": 150.0, "vol": 0.25},
+    {
+        "type": "option",
+        "symbol": "AAPL",
+        "quantity": 10,
+        "spot": 150.0,
+        "strike": 155.0,
+        "expiry": 0.25,
+        "option_type": "call",
+        "vol": 0.25,
+    },
+    {
+        "type": "option",
+        "symbol": "AAPL",
+        "quantity": -5,
+        "spot": 150.0,
+        "strike": 145.0,
+        "expiry": 0.25,
+        "option_type": "put",
+        "vol": 0.25,
+    },
+    {
+        "type": "option",
+        "symbol": "AAPL",
+        "quantity": -20,
+        "spot": 150.0,
+        "strike": 160.0,
+        "expiry": 0.5,
+        "option_type": "call",
+        "vol": 0.23,
+    },
 ]
 
 for pos in positions:
-    if pos['type'] == 'stock':
-        portfolio.add_stock_position(pos['symbol'], pos['quantity'], pos['price'], pos['vol'])
+    if pos["type"] == "stock":
+        portfolio.add_stock_position(pos["symbol"], pos["quantity"], pos["price"], pos["vol"])
     else:
-        portfolio.add_option_position(pos['symbol'], pos['quantity'], pos['spot'],
-                                    pos['strike'], pos['expiry'], pos['option_type'], pos['vol'])
+        portfolio.add_option_position(
+            pos["symbol"],
+            pos["quantity"],
+            pos["spot"],
+            pos["strike"],
+            pos["expiry"],
+            pos["option_type"],
+            pos["vol"],
+        )
 
 # Comprehensive portfolio analysis
 portfolio_value = portfolio.calculate_portfolio_value()
@@ -856,7 +956,9 @@ print(f"Rho (ρ):       {greeks['rho']:>8.2f} | Interest rate sensitivity")
 print(f"\nRisk Metrics (Multiple Confidence Levels):")
 for confidence in [0.95, 0.99]:
     var, es = portfolio.calculate_var_parametric(confidence)
-    print(f"{confidence*100:.0f}% VaR:           ${var:>8,.0f} | Expected Shortfall: ${es:>8,.0f}")
+    print(
+        f"{confidence * 100:.0f}% VaR:           ${var:>8,.0f} | Expected Shortfall: ${es:>8,.0f}"
+    )
 
 # Monte Carlo VaR with full distribution
 mc_var_95, mc_es_95 = portfolio.calculate_var_monte_carlo(0.95, num_sims=10000)
@@ -865,18 +967,20 @@ print(f"95% MC VaR:        ${mc_var_95:>8,.0f} | Monte Carlo (10k sims)")
 # Professional scenario analysis
 print(f"\nScenario Analysis:")
 scenarios = {
-    'Crash':     {'AAPL': -0.20},
-    'Selloff':   {'AAPL': -0.10},
-    'Rally':     {'AAPL': 0.10},
-    'Boom':      {'AAPL': 0.20},
+    "Crash": {"AAPL": -0.20},
+    "Selloff": {"AAPL": -0.10},
+    "Rally": {"AAPL": 0.10},
+    "Boom": {"AAPL": 0.20},
 }
 results = portfolio.scenario_analysis(scenarios)
 for scenario_name, result in results.items():
-    print(f"{scenario_name:<12}: ${result.portfolio_pnl:>8,.0f} | "
-          f"New Value: ${result.new_portfolio_value:>10,.0f}")
+    print(
+        f"{scenario_name:<12}: ${result.portfolio_pnl:>8,.0f} | "
+        f"New Value: ${result.new_portfolio_value:>10,.0f}"
+    )
 
 # Hedging recommendations
-hedge_recommendation = portfolio.calculate_hedge_ratio('AAPL')
+hedge_recommendation = portfolio.calculate_hedge_ratio("AAPL")
 print(f"\n Hedging Recommendation:")
 print(f"Current Delta Exposure: {greeks['delta']:.2f}")
 print(f"Recommended Hedge: {hedge_recommendation['hedge_quantity']:.0f} shares")
@@ -909,30 +1013,31 @@ print(f"\nVolatility Smile Analysis:")
 expiries = [0.25, 0.5, 0.75, 1.0]
 for expiry in expiries:
     smile = surface.get_smile(expiry=expiry, strike_range=(90, 110), num_points=5)
-    print(f"\n{expiry*12:.0f}M Expiry:")
-    for strike, vol in zip(smile['strikes'], smile['volatilities']):
+    print(f"\n{expiry * 12:.0f}M Expiry:")
+    for strike, vol in zip(smile["strikes"], smile["volatilities"]):
         moneyness = strike / 100  # Assuming S=100
         print(f"  K={strike:>5.0f} ({moneyness:.1%} moneyness): {vol:.1%}")
 
 # Advanced interpolation tests
 print(f"\nInterpolation Accuracy Tests:")
 test_points = [
-    {'K': 102, 'T': 0.33, 'description': 'Slightly OTM, 4M'},
-    {'K': 98, 'T': 0.67, 'description': 'Slightly ITM, 8M'},
-    {'K': 110, 'T': 0.42, 'description': 'Deep OTM, 5M'},
-    {'K': 95, 'T': 0.83, 'description': 'Deep ITM, 10M'}
+    {"K": 102, "T": 0.33, "description": "Slightly OTM, 4M"},
+    {"K": 98, "T": 0.67, "description": "Slightly ITM, 8M"},
+    {"K": 110, "T": 0.42, "description": "Deep OTM, 5M"},
+    {"K": 95, "T": 0.83, "description": "Deep ITM, 10M"},
 ]
 
 for point in test_points:
-    vol = surface.interpolate(strike=point['K'], expiry=point['T'])
+    vol = surface.interpolate(strike=point["K"], expiry=point["T"])
     print(f"{point['description']:<20}: K={point['K']}, T={point['T']:.2f}y -> σ={vol:.1%}")
 
 # Term structure analysis
 print(f"\nTerm Structure Analysis (ATM):")
-term_structure = {expiry: surface.interpolate(strike=100, expiry=expiry)
-                  for expiry in np.linspace(0.1, 1.0, 8)}
+term_structure = {
+    expiry: surface.interpolate(strike=100, expiry=expiry) for expiry in np.linspace(0.1, 1.0, 8)
+}
 for expiry, vol in term_structure.items():
-    print(f"  {expiry*12:>4.0f}M: {vol:.1%}")
+    print(f"  {expiry * 12:>4.0f}M: {vol:.1%}")
 ```
 
 **Run the complete validation suite:**

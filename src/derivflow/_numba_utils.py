@@ -10,6 +10,7 @@ single code path whether or not numba is available.
 
 try:
     from numba import njit, prange  # type: ignore
+
     HAS_NUMBA = True
 except Exception:  # pragma: no cover - exercised only without numba installed
     HAS_NUMBA = False
@@ -22,6 +23,7 @@ except Exception:  # pragma: no cover - exercised only without numba installed
 
         def decorator(func):
             return func
+
         return decorator
 
     prange = range

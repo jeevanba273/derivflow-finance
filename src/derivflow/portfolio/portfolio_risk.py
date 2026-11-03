@@ -10,77 +10,81 @@ Professional-grade portfolio risk management and analytics:
 - Risk attribution and marginal contributions
 """
 
+from dataclasses import dataclass
+
 import numpy as np
 from scipy import stats
-from scipy.optimize import minimize
-from typing import Dict, List, Optional, Union, Tuple, Any
-from dataclasses import dataclass, field
-import warnings
-from datetime import datetime, timedelta
 
 from ..core.pricing_engine import PricingEngine, price_european_option
 from ..greeks.calculator import GreeksCalculator
 
+
 @dataclass
 class Position:
     """Individual position in the portfolio"""
+
     symbol: str
     position_type: str  # 'stock', 'option', 'bond'
     quantity: float  # Number of shares/contracts (positive = long, negative = short)
     current_price: float
 
     # Option-specific fields
-    strike: Optional[float] = None
-    expiry: Optional[float] = None  # Time to expiry in years
-    option_type: Optional[str] = None  # 'call' or 'put'
+    strike: float | None = None
+    expiry: float | None = None  # Time to expiry in years
+    option_type: str | None = None  # 'call' or 'put'
 
     # Market parameters
-    volatility: Optional[float] = None
-    risk_free_rate: Optional[float] = None
-    dividend_yield: Optional[float] = None
+    volatility: float | None = None
+    risk_free_rate: float | None = None
+    dividend_yield: float | None = None
 
     # Greeks (will be calculated)
-    delta: Optional[float] = None
-    gamma: Optional[float] = None
-    theta: Optional[float] = None
-    vega: Optional[float] = None
-    rho: Optional[float] = None
+    delta: float | None = None
+    gamma: float | None = None
+    theta: float | None = None
+    vega: float | None = None
+    rho: float | None = None
+
 
 @dataclass
 class RiskMetrics:
     """Portfolio risk metrics container"""
+
     portfolio_value: float
 
     # VaR metrics
-    var_95: Optional[float] = None
-    var_99: Optional[float] = None
-    expected_shortfall_95: Optional[float] = None
-    expected_shortfall_99: Optional[float] = None
+    var_95: float | None = None
+    var_99: float | None = None
+    expected_shortfall_95: float | None = None
+    expected_shortfall_99: float | None = None
 
     # Greeks
-    portfolio_delta: Optional[float] = None
-    portfolio_gamma: Optional[float] = None
-    portfolio_theta: Optional[float] = None
-    portfolio_vega: Optional[float] = None
-    portfolio_rho: Optional[float] = None
+    portfolio_delta: float | None = None
+    portfolio_gamma: float | None = None
+    portfolio_theta: float | None = None
+    portfolio_vega: float | None = None
+    portfolio_rho: float | None = None
 
     # Risk decomposition
-    risk_contributions: Optional[Dict[str, float]] = None
-    correlation_matrix: Optional[np.ndarray] = None
+    risk_contributions: dict[str, float] | None = None
+    correlation_matrix: np.ndarray | None = None
 
     # Additional metrics
-    portfolio_volatility: Optional[float] = None
-    sharpe_ratio: Optional[float] = None
-    max_drawdown: Optional[float] = None
+    portfolio_volatility: float | None = None
+    sharpe_ratio: float | None = None
+    max_drawdown: float | None = None
+
 
 @dataclass
 class ScenarioResult:
     """Scenario analysis result"""
+
     scenario_name: str
-    spot_changes: Dict[str, float]  # Symbol -> % change
+    spot_changes: dict[str, float]  # Symbol -> % change
     portfolio_pnl: float
     new_portfolio_value: float
-    individual_pnl: Dict[str, float]  # Position -> P&L
+    individual_pnl: dict[str, float]  # Position -> P&L
+
 
 class PortfolioRiskAnalyzer:
     """
@@ -112,8 +116,14 @@ class PortfolioRiskAnalyzer:
         self.returns_data = {}
         self.correlation_matrix = None
 
-    def add_stock_position(self, symbol: str, quantity: float, current_price: float,
-                          volatility: float, dividend_yield: float = 0.0) -> None:
+    def add_stock_position(
+        self,
+        symbol: str,
+        quantity: float,
+        current_price: float,
+        volatility: float,
+        dividend_yield: float = 0.0,
+    ) -> None:
         """
         Add stock position to portfolio
 
@@ -132,7 +142,7 @@ class PortfolioRiskAnalyzer:
         """
         position = Position(
             symbol=symbol,
-            position_type='stock',
+            position_type="stock",
             quantity=quantity,
             current_price=current_price,
             volatility=volatility,
@@ -141,14 +151,22 @@ class PortfolioRiskAnalyzer:
             delta=1.0,  # Stock delta is always 1
             gamma=0.0,  # Stock gamma is 0
             theta=0.0,  # Stock theta is 0
-            vega=0.0,   # Stock vega is 0
-            rho=0.0     # Stock rho is 0
+            vega=0.0,  # Stock vega is 0
+            rho=0.0,  # Stock rho is 0
         )
         self.positions.append(position)
 
-    def add_option_position(self, symbol: str, quantity: float, current_price: float,
-                           strike: float, expiry: float, option_type: str,
-                           volatility: float, dividend_yield: float = 0.0) -> None:
+    def add_option_position(
+        self,
+        symbol: str,
+        quantity: float,
+        current_price: float,
+        strike: float,
+        expiry: float,
+        option_type: str,
+        volatility: float,
+        dividend_yield: float = 0.0,
+    ) -> None:
         """
         Add option position to portfolio
 
@@ -173,18 +191,28 @@ class PortfolioRiskAnalyzer:
         """
         # Calculate option price and Greeks (forwarding the dividend yield)
         option_price = price_european_option(
-            current_price, strike, expiry, self.risk_free_rate, volatility, option_type,
-            q=dividend_yield
+            current_price,
+            strike,
+            expiry,
+            self.risk_free_rate,
+            volatility,
+            option_type,
+            q=dividend_yield,
         )
 
         greeks = self.greeks_calc.calculate_greeks(
-            current_price, strike, expiry, self.risk_free_rate, volatility, option_type,
-            q=dividend_yield
+            current_price,
+            strike,
+            expiry,
+            self.risk_free_rate,
+            volatility,
+            option_type,
+            q=dividend_yield,
         )
 
         position = Position(
             symbol=symbol,
-            position_type='option',
+            position_type="option",
             quantity=quantity,
             current_price=current_price,
             strike=strike,
@@ -197,7 +225,7 @@ class PortfolioRiskAnalyzer:
             gamma=greeks.gamma,
             theta=greeks.theta,
             vega=greeks.vega,
-            rho=greeks.rho
+            rho=greeks.rho,
         )
         self.positions.append(position)
 
@@ -206,14 +234,18 @@ class PortfolioRiskAnalyzer:
         total_value = 0.0
 
         for position in self.positions:
-            if position.position_type == 'stock':
+            if position.position_type == "stock":
                 position_value = position.quantity * position.current_price
-            elif position.position_type == 'option':
+            elif position.position_type == "option":
                 # Recalculate option price
                 option_price = price_european_option(
-                    position.current_price, position.strike, position.expiry,
-                    position.risk_free_rate, position.volatility, position.option_type,
-                    q=position.dividend_yield or 0.0
+                    position.current_price,
+                    position.strike,
+                    position.expiry,
+                    position.risk_free_rate,
+                    position.volatility,
+                    position.option_type,
+                    q=position.dividend_yield or 0.0,
                 )
                 position_value = position.quantity * option_price * 100  # Contract multiplier
             else:
@@ -223,33 +255,28 @@ class PortfolioRiskAnalyzer:
 
         return total_value
 
-    def calculate_portfolio_greeks(self) -> Dict[str, float]:
+    def calculate_portfolio_greeks(self) -> dict[str, float]:
         """Calculate aggregated portfolio Greeks"""
-        portfolio_greeks = {
-            'delta': 0.0,
-            'gamma': 0.0,
-            'theta': 0.0,
-            'vega': 0.0,
-            'rho': 0.0
-        }
+        portfolio_greeks = {"delta": 0.0, "gamma": 0.0, "theta": 0.0, "vega": 0.0, "rho": 0.0}
 
         for position in self.positions:
-            if position.position_type == 'stock':
+            if position.position_type == "stock":
                 # Stock contributes only to delta
-                portfolio_greeks['delta'] += position.quantity * 1.0
-            elif position.position_type == 'option':
+                portfolio_greeks["delta"] += position.quantity * 1.0
+            elif position.position_type == "option":
                 # Options contribute to all Greeks
                 multiplier = position.quantity * 100  # Contract multiplier
-                portfolio_greeks['delta'] += multiplier * (position.delta or 0)
-                portfolio_greeks['gamma'] += multiplier * (position.gamma or 0)
-                portfolio_greeks['theta'] += multiplier * (position.theta or 0)
-                portfolio_greeks['vega'] += multiplier * (position.vega or 0)
-                portfolio_greeks['rho'] += multiplier * (position.rho or 0)
+                portfolio_greeks["delta"] += multiplier * (position.delta or 0)
+                portfolio_greeks["gamma"] += multiplier * (position.gamma or 0)
+                portfolio_greeks["theta"] += multiplier * (position.theta or 0)
+                portfolio_greeks["vega"] += multiplier * (position.vega or 0)
+                portfolio_greeks["rho"] += multiplier * (position.rho or 0)
 
         return portfolio_greeks
 
-    def calculate_var_parametric(self, confidence_level: float = 0.95,
-                                time_horizon: int = 1) -> Tuple[float, float]:
+    def calculate_var_parametric(
+        self, confidence_level: float = 0.95, time_horizon: int = 1
+    ) -> tuple[float, float]:
         """
         Calculate VaR using parametric (delta-normal) method
 
@@ -267,8 +294,8 @@ class PortfolioRiskAnalyzer:
         """
         # Get portfolio Greeks
         greeks = self.calculate_portfolio_greeks()
-        portfolio_delta = greeks['delta']
-        portfolio_gamma = greeks['gamma']
+        portfolio_delta = greeks["delta"]
+        portfolio_gamma = greeks["gamma"]
 
         # Estimate portfolio volatility (simplified approach)
         # In practice, you'd use full covariance matrix
@@ -293,12 +320,15 @@ class PortfolioRiskAnalyzer:
         var = portfolio_value * volatility_adjusted * z_score
 
         # Expected Shortfall (Conditional VaR)
-        expected_shortfall = portfolio_value * volatility_adjusted * stats.norm.pdf(z_score) / (1 - confidence_level)
+        expected_shortfall = (
+            portfolio_value * volatility_adjusted * stats.norm.pdf(z_score) / (1 - confidence_level)
+        )
 
         return var, expected_shortfall
 
-    def calculate_var_monte_carlo(self, confidence_level: float = 0.95,
-                                 time_horizon: int = 1, num_sims: int = 10000) -> Tuple[float, float]:
+    def calculate_var_monte_carlo(
+        self, confidence_level: float = 0.95, time_horizon: int = 1, num_sims: int = 10000
+    ) -> tuple[float, float]:
         """
         Calculate VaR using Monte Carlo simulation
 
@@ -325,35 +355,39 @@ class PortfolioRiskAnalyzer:
             simulated_value = 0.0
 
             for position in self.positions:
-                if position.position_type == 'stock':
+                if position.position_type == "stock":
                     # Simulate stock price change
                     if position.volatility:
                         dt = time_horizon / 252  # Convert days to years
                         random_return = np.random.normal(
                             (self.risk_free_rate - 0.5 * position.volatility**2) * dt,
-                            position.volatility * np.sqrt(dt)
+                            position.volatility * np.sqrt(dt),
                         )
                         new_price = position.current_price * np.exp(random_return)
                         position_value = position.quantity * new_price
                     else:
                         position_value = position.quantity * position.current_price
 
-                elif position.position_type == 'option':
+                elif position.position_type == "option":
                     # Simulate underlying price change
                     if position.volatility:
                         dt = time_horizon / 252
                         random_return = np.random.normal(
                             (self.risk_free_rate - 0.5 * position.volatility**2) * dt,
-                            position.volatility * np.sqrt(dt)
+                            position.volatility * np.sqrt(dt),
                         )
                         new_underlying_price = position.current_price * np.exp(random_return)
                         new_expiry = max(position.expiry - dt, 0.001)  # Time decay
 
                         # Recalculate option price
                         new_option_price = price_european_option(
-                            new_underlying_price, position.strike, new_expiry,
-                            position.risk_free_rate, position.volatility, position.option_type,
-                            q=position.dividend_yield or 0.0
+                            new_underlying_price,
+                            position.strike,
+                            new_expiry,
+                            position.risk_free_rate,
+                            position.volatility,
+                            position.option_type,
+                            q=position.dividend_yield or 0.0,
                         )
                         position_value = position.quantity * new_option_price * 100
                     else:
@@ -378,7 +412,9 @@ class PortfolioRiskAnalyzer:
 
         return var, expected_shortfall
 
-    def scenario_analysis(self, scenarios: Dict[str, Dict[str, float]]) -> Dict[str, ScenarioResult]:
+    def scenario_analysis(
+        self, scenarios: dict[str, dict[str, float]]
+    ) -> dict[str, ScenarioResult]:
         """
         Perform scenario analysis on portfolio
 
@@ -403,11 +439,11 @@ class PortfolioRiskAnalyzer:
                 symbol = position.symbol
                 spot_change = spot_changes.get(symbol, 0.0)  # Default to 0% change
 
-                if position.position_type == 'stock':
+                if position.position_type == "stock":
                     # Simple linear P&L for stocks
                     pnl = position.quantity * position.current_price * spot_change
 
-                elif position.position_type == 'option':
+                elif position.position_type == "option":
                     # Calculate option P&L using Greeks approximation
                     spot_dollar_change = position.current_price * spot_change
 
@@ -415,7 +451,13 @@ class PortfolioRiskAnalyzer:
                     delta_pnl = position.quantity * 100 * (position.delta or 0) * spot_dollar_change
 
                     # Second-order (gamma) P&L
-                    gamma_pnl = 0.5 * position.quantity * 100 * (position.gamma or 0) * spot_dollar_change**2
+                    gamma_pnl = (
+                        0.5
+                        * position.quantity
+                        * 100
+                        * (position.gamma or 0)
+                        * spot_dollar_change**2
+                    )
 
                     pnl = delta_pnl + gamma_pnl
                 else:
@@ -431,12 +473,12 @@ class PortfolioRiskAnalyzer:
                 spot_changes=spot_changes,
                 portfolio_pnl=total_pnl,
                 new_portfolio_value=new_portfolio_value,
-                individual_pnl=individual_pnl
+                individual_pnl=individual_pnl,
             )
 
         return results
 
-    def calculate_hedge_ratio(self, hedge_symbol: str) -> Dict[str, float]:
+    def calculate_hedge_ratio(self, hedge_symbol: str) -> dict[str, float]:
         """
         Calculate optimal hedge ratio to delta-hedge the portfolio
 
@@ -451,7 +493,7 @@ class PortfolioRiskAnalyzer:
             Hedging recommendations
         """
         greeks = self.calculate_portfolio_greeks()
-        portfolio_delta = greeks['delta']
+        portfolio_delta = greeks["delta"]
 
         # Find the underlying position to get current price
         underlying_price = None
@@ -469,11 +511,11 @@ class PortfolioRiskAnalyzer:
         hedge_notional = hedge_quantity * underlying_price
 
         return {
-            'hedge_symbol': hedge_symbol,
-            'hedge_quantity': hedge_quantity,
-            'hedge_notional': hedge_notional,
-            'current_portfolio_delta': portfolio_delta,
-            'hedged_portfolio_delta': portfolio_delta + hedge_quantity
+            "hedge_symbol": hedge_symbol,
+            "hedge_quantity": hedge_quantity,
+            "hedge_notional": hedge_notional,
+            "current_portfolio_delta": portfolio_delta,
+            "hedged_portfolio_delta": portfolio_delta + hedge_quantity,
         }
 
     def generate_risk_report(self) -> RiskMetrics:
@@ -502,17 +544,23 @@ class PortfolioRiskAnalyzer:
         risk_contributions = {}
         for i, position in enumerate(self.positions):
             position_value = 0
-            if position.position_type == 'stock':
+            if position.position_type == "stock":
                 position_value = abs(position.quantity * position.current_price)
-            elif position.position_type == 'option':
+            elif position.position_type == "option":
                 option_price = price_european_option(
-                    position.current_price, position.strike, position.expiry,
-                    position.risk_free_rate, position.volatility, position.option_type,
-                    q=position.dividend_yield or 0.0
+                    position.current_price,
+                    position.strike,
+                    position.expiry,
+                    position.risk_free_rate,
+                    position.volatility,
+                    position.option_type,
+                    q=position.dividend_yield or 0.0,
                 )
                 position_value = abs(position.quantity * option_price * 100)
 
-            risk_contributions[f"{position.symbol}_{i}"] = position_value / portfolio_value if portfolio_value > 0 else 0
+            risk_contributions[f"{position.symbol}_{i}"] = (
+                position_value / portfolio_value if portfolio_value > 0 else 0
+            )
 
         return RiskMetrics(
             portfolio_value=portfolio_value,
@@ -520,13 +568,14 @@ class PortfolioRiskAnalyzer:
             var_99=var_99_param,
             expected_shortfall_95=es_95_param,
             expected_shortfall_99=es_99_param,
-            portfolio_delta=greeks['delta'],
-            portfolio_gamma=greeks['gamma'],
-            portfolio_theta=greeks['theta'],
-            portfolio_vega=greeks['vega'],
-            portfolio_rho=greeks['rho'],
-            risk_contributions=risk_contributions
+            portfolio_delta=greeks["delta"],
+            portfolio_gamma=greeks["gamma"],
+            portfolio_theta=greeks["theta"],
+            portfolio_vega=greeks["vega"],
+            portfolio_rho=greeks["rho"],
+            risk_contributions=risk_contributions,
         )
+
 
 # Convenience functions
 def create_sample_portfolio() -> PortfolioRiskAnalyzer:
@@ -534,15 +583,16 @@ def create_sample_portfolio() -> PortfolioRiskAnalyzer:
     portfolio = PortfolioRiskAnalyzer(risk_free_rate=0.05)
 
     # Add some stock positions
-    portfolio.add_stock_position('AAPL', 100, 150.0, 0.25)
-    portfolio.add_stock_position('MSFT', -50, 300.0, 0.22)  # Short position
+    portfolio.add_stock_position("AAPL", 100, 150.0, 0.25)
+    portfolio.add_stock_position("MSFT", -50, 300.0, 0.22)  # Short position
 
     # Add some option positions
-    portfolio.add_option_position('AAPL', 10, 150.0, 155.0, 0.25, 'call', 0.25)  # Long calls
-    portfolio.add_option_position('AAPL', -5, 150.0, 145.0, 0.25, 'put', 0.25)   # Short puts
-    portfolio.add_option_position('MSFT', 3, 300.0, 295.0, 0.33, 'call', 0.22)   # Long calls
+    portfolio.add_option_position("AAPL", 10, 150.0, 155.0, 0.25, "call", 0.25)  # Long calls
+    portfolio.add_option_position("AAPL", -5, 150.0, 145.0, 0.25, "put", 0.25)  # Short puts
+    portfolio.add_option_position("MSFT", 3, 300.0, 295.0, 0.33, "call", 0.22)  # Long calls
 
     return portfolio
+
 
 # Example usage and testing
 if __name__ == "__main__":
@@ -556,14 +606,14 @@ if __name__ == "__main__":
     print(f"Portfolio Positions: {len(portfolio.positions)}")
 
     # Calculate portfolio metrics
-    print(f"\nPORTFOLIO VALUATION:")
+    print("\nPORTFOLIO VALUATION:")
     print("-" * 40)
 
     portfolio_value = portfolio.calculate_portfolio_value()
     print(f"Total Portfolio Value: ${portfolio_value:,.2f}")
 
     # Greeks analysis
-    print(f"\nPORTFOLIO GREEKS:")
+    print("\nPORTFOLIO GREEKS:")
     print("-" * 30)
 
     greeks = portfolio.calculate_portfolio_greeks()
@@ -574,7 +624,7 @@ if __name__ == "__main__":
     print(f"Portfolio Rho:    {greeks['rho']:>10.2f}")
 
     # VaR analysis
-    print(f"\n RISK METRICS:")
+    print("\n RISK METRICS:")
     print("-" * 25)
 
     try:
@@ -585,17 +635,17 @@ if __name__ == "__main__":
         print(f"95% Expected Shortfall: ${es_95:>7,.2f}")
         print(f"99% VaR (1-day):     ${var_99:>10,.2f}")
         print(f"99% Expected Shortfall: ${es_99:>7,.2f}")
-    except Exception as e:
-        print(f"VaR calculation: Limited (simplified model)")
+    except Exception:
+        print("VaR calculation: Limited (simplified model)")
 
     # Scenario analysis
-    print(f"\nSCENARIO ANALYSIS:")
+    print("\nSCENARIO ANALYSIS:")
     print("-" * 35)
 
     scenarios = {
-        'Market Crash': {'AAPL': -0.20, 'MSFT': -0.15},
-        'Tech Rally': {'AAPL': 0.15, 'MSFT': 0.12},
-        'Mixed Market': {'AAPL': 0.05, 'MSFT': -0.03}
+        "Market Crash": {"AAPL": -0.20, "MSFT": -0.15},
+        "Tech Rally": {"AAPL": 0.15, "MSFT": 0.12},
+        "Mixed Market": {"AAPL": 0.05, "MSFT": -0.03},
     }
 
     scenario_results = portfolio.scenario_analysis(scenarios)
@@ -606,20 +656,20 @@ if __name__ == "__main__":
         print(f"{name:<15} ${result.portfolio_pnl:>10,.0f} ${result.new_portfolio_value:>10,.0f}")
 
     # Hedging analysis
-    print(f"\n HEDGING RECOMMENDATIONS:")
+    print("\n HEDGING RECOMMENDATIONS:")
     print("-" * 40)
 
     try:
-        hedge_info = portfolio.calculate_hedge_ratio('AAPL')
+        hedge_info = portfolio.calculate_hedge_ratio("AAPL")
         print(f"Current Portfolio Delta: {hedge_info['current_portfolio_delta']:>8.2f}")
         print(f"Hedge Quantity (AAPL):  {hedge_info['hedge_quantity']:>8.0f} shares")
         print(f"Hedge Notional:         ${hedge_info['hedge_notional']:>8,.0f}")
         print(f"Hedged Portfolio Delta: {hedge_info['hedged_portfolio_delta']:>8.2f}")
     except Exception as e:
-        print(f"Hedging analysis: {str(e)}")
+        print(f"Hedging analysis: {e!s}")
 
     # Generate comprehensive report
-    print(f"\nCOMPREHENSIVE RISK REPORT:")
+    print("\nCOMPREHENSIVE RISK REPORT:")
     print("-" * 45)
 
     risk_report = portfolio.generate_risk_report()
@@ -632,7 +682,7 @@ if __name__ == "__main__":
     if risk_report.var_95:
         print(f"95% VaR:           ${risk_report.var_95:>12,.2f}")
 
-    print(f"\nPORTFOLIO RISK ANALYTICS STATUS:")
+    print("\nPORTFOLIO RISK ANALYTICS STATUS:")
     print("-" * 50)
     print("Multi-asset portfolio construction")
     print("Portfolio Greeks aggregation")
@@ -641,5 +691,5 @@ if __name__ == "__main__":
     print("Hedging recommendations")
     print("Comprehensive risk reporting")
 
-    print(f"\nPORTFOLIO RISK MODULE COMPLETE!")
+    print("\nPORTFOLIO RISK MODULE COMPLETE!")
     print("Professional-grade risk management ready!")

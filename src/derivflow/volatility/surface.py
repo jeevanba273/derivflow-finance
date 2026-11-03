@@ -6,31 +6,36 @@ Advanced volatility surface construction and interpolation.
 Supports multiple methodologies and market data integration.
 """
 
+from dataclasses import dataclass
+from typing import Any
+
 import numpy as np
 from scipy import interpolate
 from scipy.optimize import minimize
-from typing import Any, Dict, List, Tuple, Optional, Union
-from dataclasses import dataclass
-import warnings
+
 
 @dataclass
 class VolatilityPoint:
     """Single volatility data point"""
+
     strike: float
     expiry: float
     volatility: float
-    market_price: Optional[float] = None
-    bid: Optional[float] = None
-    ask: Optional[float] = None
+    market_price: float | None = None
+    bid: float | None = None
+    ask: float | None = None
+
 
 @dataclass
 class VolatilitySurfaceResult:
     """Result container for volatility surface operations"""
+
     strikes: np.ndarray
     expiries: np.ndarray
     volatilities: np.ndarray
-    interpolated_vol: Optional[float] = None
-    smile_params: Optional[Dict] = None
+    interpolated_vol: float | None = None
+    smile_params: dict | None = None
+
 
 class VolatilitySurface:
     """
@@ -43,7 +48,7 @@ class VolatilitySurface:
     - Arbitrage-free constraints
     """
 
-    def __init__(self, method: str = 'cubic_spline'):
+    def __init__(self, method: str = "cubic_spline"):
         """
         Initialize volatility surface engine
 
@@ -58,8 +63,9 @@ class VolatilitySurface:
         self.interpolator = None
         self.smile_params = {}
 
-    def add_volatility_point(self, strike: float, expiry: float, volatility: float,
-                           market_price: Optional[float] = None) -> None:
+    def add_volatility_point(
+        self, strike: float, expiry: float, volatility: float, market_price: float | None = None
+    ) -> None:
         """
         Add single volatility observation
 
@@ -75,10 +81,7 @@ class VolatilitySurface:
             Market price of the option
         """
         vol_point = VolatilityPoint(
-            strike=strike,
-            expiry=expiry,
-            volatility=volatility,
-            market_price=market_price
+            strike=strike, expiry=expiry, volatility=volatility, market_price=market_price
         )
         self.vol_data.append(vol_point)
         self.surface_fitted = False
@@ -92,13 +95,13 @@ class VolatilitySurface:
         data : pandas.DataFrame or List[Dict]
             Market data with columns: strike, expiry, volatility
         """
-        if hasattr(data, 'to_dict') and hasattr(data, 'columns'):  # pandas DataFrame
-            for row in data.to_dict('records'):
+        if hasattr(data, "to_dict") and hasattr(data, "columns"):  # pandas DataFrame
+            for row in data.to_dict("records"):
                 self.add_volatility_point(
-                    strike=row['strike'],
-                    expiry=row['expiry'],
-                    volatility=row['volatility'],
-                    market_price=row.get('market_price')
+                    strike=row["strike"],
+                    expiry=row["expiry"],
+                    volatility=row["volatility"],
+                    market_price=row.get("market_price"),
                 )
         elif isinstance(data, list):
             for point in data:
@@ -106,7 +109,7 @@ class VolatilitySurface:
 
         print(f"Loaded {len(self.vol_data)} volatility points")
 
-    def _prepare_data_arrays(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _prepare_data_arrays(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Prepare data for surface fitting"""
         if not self.vol_data:
             raise ValueError("No volatility data available")
@@ -127,15 +130,15 @@ class VolatilitySurface:
 
         # Also create RBF interpolator for smoother results
         self.rbf_interpolator = interpolate.Rbf(
-            strikes, expiries, volatilities,
-            function='thin_plate', smooth=0.1
+            strikes, expiries, volatilities, function="thin_plate", smooth=0.1
         )
 
         self.surface_fitted = True
         print("Cubic spline volatility surface fitted")
 
-    def _svi_implied_vol(self, k: float, a: float, b: float, sigma: float,
-                        rho: float, m: float) -> float:
+    def _svi_implied_vol(
+        self, k: float, a: float, b: float, sigma: float, rho: float, m: float
+    ) -> float:
         """
         SVI (Stochastic Volatility Inspired) model
 
@@ -146,8 +149,9 @@ class VolatilitySurface:
         w = a + b * (rho * k_shifted + sqrt_term)
         return np.sqrt(max(w, 0.001))  # Ensure positive variance
 
-    def _calibrate_svi_slice(self, strikes: np.ndarray, volatilities: np.ndarray,
-                           expiry: float) -> Dict[str, float]:
+    def _calibrate_svi_slice(
+        self, strikes: np.ndarray, volatilities: np.ndarray, expiry: float
+    ) -> dict[str, float]:
         """Calibrate SVI model for single expiry slice"""
         # Convert to log-moneyness and total variance
         atm_strike = np.median(strikes)
@@ -157,10 +161,10 @@ class VolatilitySurface:
         # Initial parameter guess
         initial_params = [
             np.mean(w_market),  # a
-            0.1,                # b
-            0.1,                # sigma
-            0.0,                # rho
-            0.0                 # m
+            0.1,  # b
+            0.1,  # sigma
+            0.0,  # rho
+            0.0,  # m
         ]
 
         def objective(params):
@@ -170,26 +174,26 @@ class VolatilitySurface:
                 vol = self._svi_implied_vol(k_i, a, b, sigma, rho, m)
                 w_model.append(vol**2 * expiry)
 
-            return np.sum((np.array(w_model) - w_market)**2)
+            return np.sum((np.array(w_model) - w_market) ** 2)
 
         # Parameter bounds for numerical stability
         bounds = [
-            (0.001, None),      # a > 0
-            (0.001, None),      # b > 0
-            (0.001, None),      # sigma > 0
-            (-0.999, 0.999),    # -1 < rho < 1
-            (None, None)        # m unconstrained
+            (0.001, None),  # a > 0
+            (0.001, None),  # b > 0
+            (0.001, None),  # sigma > 0
+            (-0.999, 0.999),  # -1 < rho < 1
+            (None, None),  # m unconstrained
         ]
 
         try:
-            result = minimize(objective, initial_params, bounds=bounds, method='L-BFGS-B')
+            result = minimize(objective, initial_params, bounds=bounds, method="L-BFGS-B")
             if result.success:
-                return dict(zip(['a', 'b', 'sigma', 'rho', 'm'], result.x))
+                return dict(zip(["a", "b", "sigma", "rho", "m"], result.x))
             else:
                 print(f"SVI calibration failed for expiry {expiry}")
                 return None
         except Exception as e:
-            print(f"SVI calibration error: {str(e)}")
+            print(f"SVI calibration error: {e!s}")
             return None
 
     def build_surface_svi(self) -> None:
@@ -203,9 +207,7 @@ class VolatilitySurface:
             mask = expiries == expiry
             if mask.sum() >= 5:  # Need minimum points for calibration
                 svi_params = self._calibrate_svi_slice(
-                    strikes[mask],
-                    volatilities[mask],
-                    float(expiry)
+                    strikes[mask], volatilities[mask], float(expiry)
                 )
                 if svi_params:
                     self.smile_params[expiry] = svi_params
@@ -213,7 +215,7 @@ class VolatilitySurface:
         self.surface_fitted = True
         print(f"SVI volatility surface fitted for {len(self.smile_params)} expiries")
 
-    def build_surface(self, method: Optional[str] = None) -> None:
+    def build_surface(self, method: str | None = None) -> None:
         """
         Build volatility surface using specified method
 
@@ -228,11 +230,11 @@ class VolatilitySurface:
         if not self.vol_data:
             raise ValueError("No volatility data to fit surface")
 
-        if self.method == 'cubic_spline':
+        if self.method == "cubic_spline":
             self.build_surface_cubic_spline()
-        elif self.method == 'svi':
+        elif self.method == "svi":
             self.build_surface_svi()
-        elif self.method == 'rbf':
+        elif self.method == "rbf":
             self.build_surface_cubic_spline()  # RBF included in cubic spline method
         else:
             raise ValueError(f"Unknown method: {self.method}")
@@ -256,7 +258,7 @@ class VolatilitySurface:
         if not self.surface_fitted:
             self.build_surface()
 
-        if self.method == 'svi':
+        if self.method == "svi":
             # Find closest expiry with calibrated parameters
             if not self.smile_params:
                 raise ValueError("No SVI parameters available")
@@ -270,7 +272,7 @@ class VolatilitySurface:
 
             return self._svi_implied_vol(k, **params)
 
-        elif self.method in ['cubic_spline', 'rbf']:
+        elif self.method in ["cubic_spline", "rbf"]:
             if self.rbf_interpolator:
                 vol = self.rbf_interpolator(strike, expiry)
                 return max(float(vol), 0.01)  # Ensure minimum volatility
@@ -279,13 +281,17 @@ class VolatilitySurface:
                 if np.isnan(vol):
                     # Fallback to nearest neighbor
                     strikes, expiries, volatilities = self._prepare_data_arrays()
-                    distances = (strikes - strike)**2 + (expiries - expiry)**2
+                    distances = (strikes - strike) ** 2 + (expiries - expiry) ** 2
                     nearest_idx = np.argmin(distances)
                     return volatilities[nearest_idx]
                 return max(float(vol), 0.01)
 
-    def get_smile(self, expiry: float, strike_range: Optional[Tuple[float, float]] = None,
-                  num_points: int = 50) -> Dict[str, np.ndarray]:
+    def get_smile(
+        self,
+        expiry: float,
+        strike_range: tuple[float, float] | None = None,
+        num_points: int = 50,
+    ) -> dict[str, np.ndarray]:
         """
         Extract volatility smile for given expiry
 
@@ -308,8 +314,9 @@ class VolatilitySurface:
 
         # Determine strike range
         if strike_range is None:
-            strikes_data = [point.strike for point in self.vol_data
-                          if abs(point.expiry - expiry) < 0.1]
+            strikes_data = [
+                point.strike for point in self.vol_data if abs(point.expiry - expiry) < 0.1
+            ]
             if not strikes_data:
                 raise ValueError(f"No data found near expiry {expiry}")
 
@@ -322,13 +329,9 @@ class VolatilitySurface:
         strikes = np.linspace(min_strike, max_strike, num_points)
         volatilities = np.array([self.interpolate(k, expiry) for k in strikes])
 
-        return {
-            'strikes': strikes,
-            'volatilities': volatilities,
-            'expiry': expiry
-        }
+        return {"strikes": strikes, "volatilities": volatilities, "expiry": expiry}
 
-    def check_arbitrage(self, strikes: np.ndarray, volatilities: np.ndarray) -> Dict[str, bool]:
+    def check_arbitrage(self, strikes: np.ndarray, volatilities: np.ndarray) -> dict[str, bool]:
         """
         Check for arbitrage conditions in volatility smile
 
@@ -360,12 +363,12 @@ class VolatilitySurface:
             butterfly_arbitrage = np.any(d2c_dk2 < -1e-6)
 
         return {
-            'calendar_arbitrage': calendar_arbitrage,
-            'butterfly_arbitrage': butterfly_arbitrage,
-            'arbitrage_free': not (calendar_arbitrage or butterfly_arbitrage)
+            "calendar_arbitrage": calendar_arbitrage,
+            "butterfly_arbitrage": butterfly_arbitrage,
+            "arbitrage_free": not (calendar_arbitrage or butterfly_arbitrage),
         }
 
-    def surface_statistics(self) -> Dict[str, float]:
+    def surface_statistics(self) -> dict[str, float]:
         """Calculate surface quality statistics"""
         if not self.vol_data:
             return {}
@@ -373,16 +376,16 @@ class VolatilitySurface:
         volatilities = [point.volatility for point in self.vol_data]
 
         return {
-            'num_points': len(self.vol_data),
-            'min_volatility': min(volatilities),
-            'max_volatility': max(volatilities),
-            'mean_volatility': np.mean(volatilities),
-            'vol_of_vol': np.std(volatilities),
-            'unique_expiries': len(set(point.expiry for point in self.vol_data)),
-            'unique_strikes': len(set(point.strike for point in self.vol_data))
+            "num_points": len(self.vol_data),
+            "min_volatility": min(volatilities),
+            "max_volatility": max(volatilities),
+            "mean_volatility": np.mean(volatilities),
+            "vol_of_vol": np.std(volatilities),
+            "unique_expiries": len(set(point.expiry for point in self.vol_data)),
+            "unique_strikes": len(set(point.strike for point in self.vol_data)),
         }
 
-    def plot_surface(self, figsize: Tuple[int, int] = (12, 8)) -> None:
+    def plot_surface(self, figsize: tuple[int, int] = (12, 8)) -> None:
         """Plot 3D volatility surface (requires matplotlib, extra ``[plot]``)"""
         import matplotlib.pyplot as plt
 
@@ -407,23 +410,24 @@ class VolatilitySurface:
 
         # Create 3D plot
         fig = plt.figure(figsize=figsize)
-        ax = fig.add_subplot(111, projection='3d')
+        ax = fig.add_subplot(111, projection="3d")
 
         # Plot surface
-        surf = ax.plot_surface(K_grid, T_grid, vol_grid, cmap='viridis', alpha=0.8)
+        surf = ax.plot_surface(K_grid, T_grid, vol_grid, cmap="viridis", alpha=0.8)
 
         # Plot original data points
-        ax.scatter(strikes, expiries, volatilities, color='red', s=50, alpha=0.8)
+        ax.scatter(strikes, expiries, volatilities, color="red", s=50, alpha=0.8)
 
-        ax.set_xlabel('Strike')
-        ax.set_ylabel('Time to Expiry')
-        ax.set_zlabel('Implied Volatility')
-        ax.set_title('Volatility Surface')
+        ax.set_xlabel("Strike")
+        ax.set_ylabel("Time to Expiry")
+        ax.set_zlabel("Implied Volatility")
+        ax.set_title("Volatility Surface")
 
         # Add colorbar
         fig.colorbar(surf, shrink=0.5, aspect=5)
 
         plt.show()
+
 
 # Convenience functions
 def create_sample_surface() -> VolatilitySurface:
@@ -453,6 +457,7 @@ def create_sample_surface() -> VolatilitySurface:
 
     return surface
 
+
 if __name__ == "__main__":
     # Example usage and testing
     print("DERIVFLOW-FINANCE: Volatility Surface Engine")
@@ -464,11 +469,11 @@ if __name__ == "__main__":
 
     # Build surface
     print("\nBuilding surface with cubic spline interpolation...")
-    surface.build_surface(method='cubic_spline')
+    surface.build_surface(method="cubic_spline")
 
     # Surface statistics
     stats = surface.surface_statistics()
-    print(f"\nSURFACE STATISTICS:")
+    print("\nSURFACE STATISTICS:")
     print("-" * 40)
     print(f"Data Points:      {stats['num_points']}")
     print(f"Unique Expiries:  {stats['unique_expiries']}")
@@ -478,13 +483,13 @@ if __name__ == "__main__":
     print(f"Vol of Vol:       {stats['vol_of_vol']:.1%}")
 
     # Test interpolation
-    print(f"\nINTERPOLATION TESTS:")
+    print("\nINTERPOLATION TESTS:")
     print("-" * 40)
     test_points = [
         (100, 0.25, "3M ATM"),
         (95, 0.25, "3M 95% Put"),
         (105, 0.25, "3M 105% Call"),
-        (100, 0.5, "6M ATM")
+        (100, 0.5, "6M ATM"),
     ]
 
     for strike, expiry, description in test_points:
@@ -492,14 +497,14 @@ if __name__ == "__main__":
         print(f"{description:<15}: {vol:.1%}")
 
     # Extract smile
-    print(f"\nVOLATILITY SMILE (3M expiry):")
+    print("\nVOLATILITY SMILE (3M expiry):")
     print("-" * 40)
     smile = surface.get_smile(0.25, strike_range=(85, 115), num_points=7)
 
     print(f"{'Strike':<8} {'Vol':<8}")
     print("-" * 16)
-    for i, (k, v) in enumerate(zip(smile['strikes'], smile['volatilities'])):
+    for i, (k, v) in enumerate(zip(smile["strikes"], smile["volatilities"])):
         print(f"{k:<8.0f} {v:<8.1%}")
 
-    print(f"\nVolatility surface analysis complete!")
+    print("\nVolatility surface analysis complete!")
     print("Ready for advanced derivatives pricing!")

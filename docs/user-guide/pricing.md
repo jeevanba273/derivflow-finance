@@ -15,14 +15,12 @@ methods raises a clear error.
 from derivflow import PricingEngine, price_european_option
 
 # Convenience helper (analytical, supports dividend yield q)
-price = price_european_option(S=100, K=105, T=0.25, r=0.05, sigma=0.2,
-                              option_type="call", q=0.02)
+price = price_european_option(S=100, K=105, T=0.25, r=0.05, sigma=0.2, option_type="call", q=0.02)
 print(f"Call price: {price:.4f}")
 
 # Compare methods through the engine
 engine = PricingEngine()
-comparison = engine.compare_methods(S=100, K=105, T=0.25, r=0.05, sigma=0.2,
-                                    option_type="call")
+comparison = engine.compare_methods(S=100, K=105, T=0.25, r=0.05, sigma=0.2, option_type="call")
 for method, result in comparison.items():
     print(method, result.get("price"))
 ```

@@ -9,20 +9,18 @@ Complete implementation of the Heston model with:
 - Greeks calculation
 """
 
-import numpy as np
-from scipy import integrate
-from scipy.optimize import minimize
-import scipy.stats as stats
-from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass
 import warnings
+from dataclasses import dataclass
 
-from .._numba_utils import njit, prange, HAS_NUMBA
+import numpy as np
+import scipy.stats as stats
+from scipy.optimize import minimize
+
+from .._numba_utils import HAS_NUMBA, njit, prange
 
 
 @njit(cache=True, parallel=True)
-def _heston_euler_final(S, r, dt, sqrt_dt, kappa, theta, sigma, v0,
-                        W1, W2, num_sims, num_steps):
+def _heston_euler_final(S, r, dt, sqrt_dt, kappa, theta, sigma, v0, W1, W2, num_sims, num_steps):
     """
     Simulate Heston paths with the Euler-Maruyama scheme and return only the
     terminal asset prices. Path-recursive in the variance process, so this is a
@@ -45,25 +43,30 @@ def _heston_euler_final(S, r, dt, sqrt_dt, kappa, theta, sigma, v0,
         final_prices[i] = s
     return final_prices
 
+
 @dataclass
 class HestonParameters:
     """Heston model parameters"""
-    v0: float      # Initial volatility
-    kappa: float   # Mean reversion speed
-    theta: float   # Long-term volatility
-    sigma: float   # Volatility of volatility
-    rho: float     # Correlation between asset and volatility
+
+    v0: float  # Initial volatility
+    kappa: float  # Mean reversion speed
+    theta: float  # Long-term volatility
+    sigma: float  # Volatility of volatility
+    rho: float  # Correlation between asset and volatility
+
 
 @dataclass
 class HestonResult:
     """Heston pricing result"""
+
     price: float
-    delta: Optional[float] = None
-    gamma: Optional[float] = None
-    vega: Optional[float] = None
-    theta: Optional[float] = None
-    volga: Optional[float] = None
-    vanna: Optional[float] = None
+    delta: float | None = None
+    gamma: float | None = None
+    vega: float | None = None
+    theta: float | None = None
+    volga: float | None = None
+    vanna: float | None = None
+
 
 class HestonModel:
     """
@@ -81,8 +84,9 @@ class HestonModel:
         self.params = None
         self.calibrated = False
 
-    def set_parameters(self, v0: float, kappa: float, theta: float,
-                      sigma: float, rho: float) -> None:
+    def set_parameters(
+        self, v0: float, kappa: float, theta: float, sigma: float, rho: float
+    ) -> None:
         """
         Set Heston model parameters
 
@@ -122,13 +126,16 @@ class HestonModel:
             raise ValueError("Parameters not set")
 
         v0, kappa, theta, sigma, rho = (
-            self.params.v0, self.params.kappa, self.params.theta,
-            self.params.sigma, self.params.rho
+            self.params.v0,
+            self.params.kappa,
+            self.params.theta,
+            self.params.sigma,
+            self.params.rho,
         )
 
         # Complex calculations
         i = complex(0, 1)
-        d = np.sqrt((rho * sigma * u * i - kappa)**2 - sigma**2 * (2 * u * i - u**2))
+        d = np.sqrt((rho * sigma * u * i - kappa) ** 2 - sigma**2 * (2 * u * i - u**2))
         g = (kappa - rho * sigma * u * i - d) / (kappa - rho * sigma * u * i + d)
 
         # Handle numerical issues
@@ -137,18 +144,18 @@ class HestonModel:
 
         # Exponential terms
         exp_term = np.exp(-d * T)
-        C = (r * u * i * T +
-             (kappa * theta / sigma**2) *
-             ((kappa - rho * sigma * u * i - d) * T - 2 * np.log((1 - g * exp_term) / (1 - g))))
+        C = r * u * i * T + (kappa * theta / sigma**2) * (
+            (kappa - rho * sigma * u * i - d) * T - 2 * np.log((1 - g * exp_term) / (1 - g))
+        )
 
-        D = ((kappa - rho * sigma * u * i - d) / sigma**2 *
-             (1 - exp_term) / (1 - g * exp_term))
+        D = (kappa - rho * sigma * u * i - d) / sigma**2 * (1 - exp_term) / (1 - g * exp_term)
 
         # Characteristic function
         return np.exp(C + D * v0 + i * u * np.log(S))
 
-    def _heston_price_fourier(self, S: float, K: float, T: float, r: float,
-                             option_type: str = 'call') -> float:
+    def _heston_price_fourier(
+        self, S: float, K: float, T: float, r: float, option_type: str = "call"
+    ) -> float:
         """
         Price option using Fourier inversion of characteristic function
 
@@ -159,8 +166,8 @@ class HestonModel:
 
         # Fourier inversion parameters
         alpha = 1.5  # Dampening factor
-        eta = 0.25   # Grid spacing
-        N = 2**12    # Number of points
+        eta = 0.25  # Grid spacing
+        N = 2**12  # Number of points
 
         # Grid setup
         lambda_vals = 2 * np.pi / (N * eta)
@@ -173,7 +180,8 @@ class HestonModel:
         # Modified characteristic function
         def psi(u_val):
             return self._characteristic_function(u_val - (alpha + 1) * 1j, S, T, r) / (
-                alpha**2 + alpha - u_val**2 + 1j * (2 * alpha + 1) * u_val)
+                alpha**2 + alpha - u_val**2 + 1j * (2 * alpha + 1) * u_val
+            )
 
         # Calculate Fourier transform
         x = np.log(K)
@@ -199,15 +207,22 @@ class HestonModel:
         price_interp = np.interp(K, strikes, call_prices)
         call_price = np.exp(-r * T) * price_interp
 
-        if option_type.lower() == 'call':
+        if option_type.lower() == "call":
             return max(call_price, 0)
         else:  # put
             put_price = call_price - S + K * np.exp(-r * T)
             return max(put_price, 0)
 
-    def monte_carlo_price(self, S: float, K: float, T: float, r: float,
-                         option_type: str = 'call', num_sims: int = 100000,
-                         num_steps: int = 252) -> HestonResult:
+    def monte_carlo_price(
+        self,
+        S: float,
+        K: float,
+        T: float,
+        r: float,
+        option_type: str = "call",
+        num_sims: int = 100000,
+        num_steps: int = 252,
+    ) -> HestonResult:
         """
         Price option using Monte Carlo simulation
 
@@ -218,8 +233,11 @@ class HestonModel:
             raise ValueError("Parameters not set")
 
         v0, kappa, theta, sigma, rho = (
-            self.params.v0, self.params.kappa, self.params.theta,
-            self.params.sigma, self.params.rho
+            self.params.v0,
+            self.params.kappa,
+            self.params.theta,
+            self.params.sigma,
+            self.params.rho,
         )
 
         dt = T / num_steps
@@ -235,8 +253,7 @@ class HestonModel:
         if HAS_NUMBA:
             # JIT kernel: path-recursive variance process, returns terminal prices
             final_prices = _heston_euler_final(
-                S, r, dt, sqrt_dt, kappa, theta, sigma, v0,
-                W1, W2, num_sims, num_steps
+                S, r, dt, sqrt_dt, kappa, theta, sigma, v0, W1, W2, num_sims, num_steps
             )
         else:
             # Vectorized-over-sims fallback (identical recurrence, only current
@@ -247,13 +264,13 @@ class HestonModel:
                 v_pos = np.maximum(v, 0.0)
                 v_next = np.maximum(
                     v + kappa * (theta - v) * dt + sigma * np.sqrt(v_pos) * sqrt_dt * W2[:, t],
-                    0.0001
+                    0.0001,
                 )
                 s = s * np.exp((r - 0.5 * v) * dt + np.sqrt(v_pos) * sqrt_dt * W1[:, t])
                 v = v_next
             final_prices = s
 
-        if option_type.lower() == 'call':
+        if option_type.lower() == "call":
             payoffs = np.maximum(final_prices - K, 0)
         else:
             payoffs = np.maximum(K - final_prices, 0)
@@ -264,7 +281,7 @@ class HestonModel:
 
         return HestonResult(price=price)
 
-    def calibrate_to_market(self, market_data: List[Dict], S: float, r: float) -> Dict:
+    def calibrate_to_market(self, market_data: list[dict], S: float, r: float) -> dict:
         """
         Calibrate Heston parameters to market option prices
 
@@ -282,13 +299,18 @@ class HestonModel:
         Dict
             Calibration results and fitted parameters
         """
+
         def objective_function(params):
             v0, kappa, theta, sigma, rho = params
 
             # Parameter constraints
-            if not (0.001 < v0 < 1.0 and 0.001 < kappa < 10.0 and
-                   0.001 < theta < 1.0 and 0.001 < sigma < 2.0 and
-                   -0.99 < rho < 0.99):
+            if not (
+                0.001 < v0 < 1.0
+                and 0.001 < kappa < 10.0
+                and 0.001 < theta < 1.0
+                and 0.001 < sigma < 2.0
+                and -0.99 < rho < 0.99
+            ):
                 return 1e6
 
             # Set parameters
@@ -301,12 +323,16 @@ class HestonModel:
             for data_point in market_data:
                 try:
                     model_price = self.monte_carlo_price(
-                        S, data_point['K'], data_point['T'], r,
-                        data_point.get('option_type', 'call'), num_sims=10000
+                        S,
+                        data_point["K"],
+                        data_point["T"],
+                        r,
+                        data_point.get("option_type", "call"),
+                        num_sims=10000,
                     ).price
 
-                    market_price = data_point['price']
-                    error = (model_price - market_price)**2 / market_price**2
+                    market_price = data_point["price"]
+                    error = (model_price - market_price) ** 2 / market_price**2
                     total_error += error
 
                 except:
@@ -319,11 +345,11 @@ class HestonModel:
 
         # Parameter bounds
         bounds = [
-            (0.001, 1.0),   # v0
+            (0.001, 1.0),  # v0
             (0.001, 10.0),  # kappa
-            (0.001, 1.0),   # theta
-            (0.001, 2.0),   # sigma
-            (-0.99, 0.99)   # rho
+            (0.001, 1.0),  # theta
+            (0.001, 2.0),  # sigma
+            (-0.99, 0.99),  # rho
         ]
 
         # Optimize
@@ -331,9 +357,9 @@ class HestonModel:
             result = minimize(
                 objective_function,
                 initial_guess,
-                method='L-BFGS-B',
+                method="L-BFGS-B",
                 bounds=bounds,
-                options={'maxiter': 100}
+                options={"maxiter": 100},
             )
 
             if result.success:
@@ -342,28 +368,32 @@ class HestonModel:
                 self.calibrated = True
 
                 return {
-                    'success': True,
-                    'parameters': {
-                        'v0': v0, 'kappa': kappa, 'theta': theta,
-                        'sigma': sigma, 'rho': rho
+                    "success": True,
+                    "parameters": {
+                        "v0": v0,
+                        "kappa": kappa,
+                        "theta": theta,
+                        "sigma": sigma,
+                        "rho": rho,
                     },
-                    'objective_value': result.fun,
-                    'message': 'Calibration successful'
+                    "objective_value": result.fun,
+                    "message": "Calibration successful",
                 }
             else:
-                return {
-                    'success': False,
-                    'message': f'Optimization failed: {result.message}'
-                }
+                return {"success": False, "message": f"Optimization failed: {result.message}"}
 
         except Exception as e:
-            return {
-                'success': False,
-                'message': f'Calibration error: {str(e)}'
-            }
+            return {"success": False, "message": f"Calibration error: {e!s}"}
 
-    def price_option(self, S: float, K: float, T: float, r: float,
-                    option_type: str = 'call', method: str = 'monte_carlo') -> HestonResult:
+    def price_option(
+        self,
+        S: float,
+        K: float,
+        T: float,
+        r: float,
+        option_type: str = "call",
+        method: str = "monte_carlo",
+    ) -> HestonResult:
         """
         Main interface for Heston option pricing
 
@@ -390,13 +420,14 @@ class HestonModel:
         if self.params is None:
             raise ValueError("Model parameters not set")
 
-        if method.lower() == 'monte_carlo':
+        if method.lower() == "monte_carlo":
             return self.monte_carlo_price(S, K, T, r, option_type)
-        elif method.lower() == 'fourier':
+        elif method.lower() == "fourier":
             price = self._heston_price_fourier(S, K, T, r, option_type)
             return HestonResult(price=price)
         else:
             raise ValueError(f"Unknown method: {method}")
+
 
 if __name__ == "__main__":
     # Example usage and testing
@@ -408,17 +439,17 @@ if __name__ == "__main__":
 
     # Set realistic parameters
     heston.set_parameters(
-        v0=0.04,      # 4% initial volatility
-        kappa=2.0,    # Mean reversion speed
-        theta=0.04,   # 4% long-term volatility
-        sigma=0.3,    # 30% vol-of-vol
-        rho=-0.7      # Negative correlation (leverage effect)
+        v0=0.04,  # 4% initial volatility
+        kappa=2.0,  # Mean reversion speed
+        theta=0.04,  # 4% long-term volatility
+        sigma=0.3,  # 30% vol-of-vol
+        rho=-0.7,  # Negative correlation (leverage effect)
     )
 
     # Test parameters
     S, K, T, r = 100, 105, 0.25, 0.05
 
-    print(f"Heston Model Parameters:")
+    print("Heston Model Parameters:")
     print(f"   v₀ = {heston.params.v0:.3f} (initial vol)")
     print(f"   κ  = {heston.params.kappa:.1f} (mean reversion)")
     print(f"   θ  = {heston.params.theta:.3f} (long-term vol)")
@@ -432,12 +463,12 @@ if __name__ == "__main__":
     print(f"   Status: {'Satisfied' if feller_condition > 0 else 'Violated'}")
     print()
 
-    print(f"Option Pricing Comparison:")
+    print("Option Pricing Comparison:")
     print(f"   Spot: ${S} | Strike: ${K} | Time: {T} years")
     print("-" * 50)
 
     # Price using Monte Carlo
-    mc_result = heston.price_option(S, K, T, r, 'call', method='monte_carlo')
+    mc_result = heston.price_option(S, K, T, r, "call", method="monte_carlo")
     print(f"Heston Monte Carlo:  ${mc_result.price:.4f}")
 
     # Compare to Black-Scholes (inline calculation)
@@ -450,8 +481,10 @@ if __name__ == "__main__":
     print(f"Difference:          ${mc_result.price - bs_price:.4f}")
     print(f"Relative Diff:       {(mc_result.price - bs_price) / bs_price:.1%}")
 
-    print(f"\nHESTON VS BLACK-SCHOLES ANALYSIS:")
+    print("\nHESTON VS BLACK-SCHOLES ANALYSIS:")
     print("-" * 50)
-    print(f"Heston captures stochastic volatility effects")
-    print(f"Difference of {(mc_result.price - bs_price) / bs_price:.1%} shows volatility smile impact")
+    print("Heston captures stochastic volatility effects")
+    print(
+        f"Difference of {(mc_result.price - bs_price) / bs_price:.1%} shows volatility smile impact"
+    )
     print(f"Negative correlation (ρ={heston.params.rho}) creates leverage effect")

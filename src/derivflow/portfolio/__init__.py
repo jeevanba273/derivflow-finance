@@ -10,13 +10,13 @@ from .portfolio_risk import (
     Position,
     RiskMetrics,
     ScenarioResult,
-    create_sample_portfolio
+    create_sample_portfolio,
 )
 
 __all__ = [
-    'PortfolioRiskAnalyzer',
-    'Position',
-    'RiskMetrics',
-    'ScenarioResult',
-    'create_sample_portfolio'
+    "PortfolioRiskAnalyzer",
+    "Position",
+    "RiskMetrics",
+    "ScenarioResult",
+    "create_sample_portfolio",
 ]

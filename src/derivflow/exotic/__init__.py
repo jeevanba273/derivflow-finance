@@ -9,41 +9,44 @@ Comprehensive exotic derivatives pricing capabilities:
 """
 
 # Barrier Options
-from .barrier_options import (
-    BarrierOptions,
-    BarrierType,
-    BarrierOptionResult
-)
-
 # Asian Options
 from .asian_options import (
+    AsianOptionResult,
     AsianOptions,
     AsianType,
     AverageType,
-    AsianOptionResult,
+    compare_asian_types,
     price_asian_option,
-    compare_asian_types
 )
+from .barrier_options import BarrierOptionResult, BarrierOptions, BarrierType
 
 # Convenience exports
 __all__ = [
     # Barrier Options
-    'BarrierOptions',
-    'BarrierType',
-    'BarrierOptionResult',
-
+    "BarrierOptions",
+    "BarrierType",
+    "BarrierOptionResult",
     # Asian Options
-    'AsianOptions',
-    'AsianType',
-    'AverageType',
-    'AsianOptionResult',
-    'price_asian_option',
-    'compare_asian_types'
+    "AsianOptions",
+    "AsianType",
+    "AverageType",
+    "AsianOptionResult",
+    "price_asian_option",
+    "compare_asian_types",
 ]
 
+
 # Module-level convenience functions
-def price_barrier_option(S: float, K: float, H: float, T: float, r: float,
-                        sigma: float, barrier_type: str, option_type: str = 'call') -> float:
+def price_barrier_option(
+    S: float,
+    K: float,
+    H: float,
+    T: float,
+    r: float,
+    sigma: float,
+    barrier_type: str,
+    option_type: str = "call",
+) -> float:
     """
     Quick function to price barrier option
 
@@ -75,6 +78,7 @@ def price_barrier_option(S: float, K: float, H: float, T: float, r: float,
     result = barrier_engine.price(S, K, H, T, r, sigma, barrier_type, option_type)
     return result.price
 
+
 def exotic_options_demo() -> None:
     """
     Comprehensive demonstration of exotic options capabilities
@@ -85,7 +89,7 @@ def exotic_options_demo() -> None:
     # Test parameters
     S, K, T, r, sigma = 100, 105, 0.25, 0.05, 0.3
 
-    print(f"Market Parameters:")
+    print("Market Parameters:")
     print(f"   Spot: ${S} | Strike: ${K} | Time: {T}y | Rate: {r:.1%} | Vol: {sigma:.1%}")
     print("-" * 70)
 
@@ -97,54 +101,50 @@ def exotic_options_demo() -> None:
 
     # Down-and-out call
     barrier_result = barrier_engine.price(
-        S=S, K=K, H=95, T=T, r=r, sigma=sigma,
-        barrier_type='down_and_out', option_type='call'
+        S=S, K=K, H=95, T=T, r=r, sigma=sigma, barrier_type="down_and_out", option_type="call"
     )
 
-    print(f"Down-and-Out Call:")
+    print("Down-and-Out Call:")
     print(f"  Price: ${barrier_result.price:.4f}")
     print(f"  Survival Probability: {barrier_result.probability_survival:.1%}")
 
     # Up-and-out call
     barrier_result2 = barrier_engine.price(
-        S=S, K=K, H=115, T=T, r=r, sigma=sigma,
-        barrier_type='up_and_out', option_type='call'
+        S=S, K=K, H=115, T=T, r=r, sigma=sigma, barrier_type="up_and_out", option_type="call"
     )
 
-    print(f"Up-and-Out Call:")
+    print("Up-and-Out Call:")
     print(f"  Price: ${barrier_result2.price:.4f}")
     print(f"  Survival Probability: {barrier_result2.probability_survival:.1%}")
 
     # 2. Asian Options Demo
-    print(f"\n2. ASIAN OPTIONS")
+    print("\n2. ASIAN OPTIONS")
     print("-" * 40)
 
     asian_engine = AsianOptions(num_sims=50000)
 
     # Arithmetic Asian call
     arith_result = asian_engine.price(
-        S=S, K=K, T=T, r=r, sigma=sigma,
-        option_type='call', asian_type='arithmetic'
+        S=S, K=K, T=T, r=r, sigma=sigma, option_type="call", asian_type="arithmetic"
     )
 
-    print(f"Arithmetic Asian Call:")
+    print("Arithmetic Asian Call:")
     print(f"  Price: ${arith_result.price:.4f} ± {arith_result.std_error:.4f}")
 
     # Geometric Asian call
     geom_result = asian_engine.price(
-        S=S, K=K, T=T, r=r, sigma=sigma,
-        option_type='call', asian_type='geometric'
+        S=S, K=K, T=T, r=r, sigma=sigma, option_type="call", asian_type="geometric"
     )
 
-    print(f"Geometric Asian Call:")
+    print("Geometric Asian Call:")
     print(f"  Price: ${geom_result.price:.4f}")
 
     # Comparison
     diff = arith_result.price - geom_result.price
-    print(f"Price Difference: ${diff:.4f} ({diff/geom_result.price:.1%})")
+    print(f"Price Difference: ${diff:.4f} ({diff / geom_result.price:.1%})")
 
     # 3. Summary
-    print(f"\nEXOTIC OPTIONS SUMMARY:")
+    print("\nEXOTIC OPTIONS SUMMARY:")
     print("-" * 40)
     print("Barrier Options: All variants implemented")
     print("Asian Options: Arithmetic & geometric averaging")
@@ -152,7 +152,8 @@ def exotic_options_demo() -> None:
     print("Survival probabilities & error estimates")
     print("Professional-grade exotic derivatives platform")
 
-    print(f"\nExotic options module complete!")
+    print("\nExotic options module complete!")
+
 
 if __name__ == "__main__":
     exotic_options_demo()

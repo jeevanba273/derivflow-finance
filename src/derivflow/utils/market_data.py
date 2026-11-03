@@ -10,13 +10,12 @@ Professional-grade market data interface with:
 - Robust handling of market closed scenarios
 """
 
-import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Union
-import warnings
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
+from datetime import datetime
+
+import numpy as np
+import pandas as pd
 
 
 def _yf():
@@ -27,16 +26,18 @@ def _yf():
     """
     try:
         import yfinance as yf
+
         return yf
     except ImportError as exc:  # pragma: no cover - exercised only without yfinance
         raise ImportError(
-            "yfinance is required for live market data. Install it with "
-            "'pip install yfinance'."
+            "yfinance is required for live market data. Install it with 'pip install yfinance'."
         ) from exc
+
 
 @dataclass
 class OptionData:
     """Single option data point"""
+
     symbol: str
     strike: float
     expiry: str
@@ -46,18 +47,21 @@ class OptionData:
     ask: float
     volume: int
     open_interest: int
-    implied_volatility: Optional[float] = None
+    implied_volatility: float | None = None
+
 
 @dataclass
 class MarketDataResult:
     """Market data extraction result"""
+
     symbol: str
     spot_price: float
-    options_data: List[OptionData]
+    options_data: list[OptionData]
     timestamp: datetime
     total_options: int
     data_quality: str
     market_status: str
+
 
 class AdvancedMarketData:
     """
@@ -86,7 +90,7 @@ class AdvancedMarketData:
     def _safe_float(self, val, default: float = 0.0) -> float:
         """Safely convert value to float, handling NaN"""
         try:
-            if pd.isna(val) or val == '' or val is None:
+            if pd.isna(val) or val == "" or val is None:
                 return default
             return float(val)
         except (ValueError, TypeError):
@@ -95,13 +99,13 @@ class AdvancedMarketData:
     def _safe_int(self, val, default: int = 0) -> int:
         """Safely convert value to int, handling NaN"""
         try:
-            if pd.isna(val) or val == '' or val is None:
+            if pd.isna(val) or val == "" or val is None:
                 return default
             return int(float(val))
         except (ValueError, TypeError):
             return default
 
-    def is_market_open(self) -> Tuple[bool, str]:
+    def is_market_open(self) -> tuple[bool, str]:
         """
         Check if US market is currently open
 
@@ -112,10 +116,11 @@ class AdvancedMarketData:
         """
         try:
             from datetime import datetime
+
             import pytz
 
             # US Eastern Time
-            eastern = pytz.timezone('US/Eastern')
+            eastern = pytz.timezone("US/Eastern")
             now = datetime.now(eastern)
 
             # Market hours: 9:30 AM - 4:00 PM ET, Monday-Friday
@@ -145,13 +150,13 @@ class AdvancedMarketData:
             treasury = _yf().Ticker("^TNX")
             hist = treasury.history(period="5d")
             if not hist.empty:
-                return self._safe_float(hist['Close'].iloc[-1]) / 100
+                return self._safe_float(hist["Close"].iloc[-1]) / 100
             else:
                 return 0.045  # Default 4.5% if data unavailable
         except Exception:
             return 0.045  # Default fallback
 
-    def get_current_price(self, symbol: str) -> Tuple[float, datetime]:
+    def get_current_price(self, symbol: str) -> tuple[float, datetime]:
         """
         Get current stock price (or last available price)
 
@@ -172,22 +177,22 @@ class AdvancedMarketData:
             hist = ticker.history(period="2d", interval="5m")
 
             if not hist.empty:
-                current_price = self._safe_float(hist['Close'].iloc[-1])
+                current_price = self._safe_float(hist["Close"].iloc[-1])
                 timestamp = hist.index[-1].to_pydatetime()
             else:
                 # Fallback to daily data
                 hist = ticker.history(period="5d")
                 if hist.empty:
                     raise ValueError(f"No price data available for {symbol}")
-                current_price = self._safe_float(hist['Close'].iloc[-1])
+                current_price = self._safe_float(hist["Close"].iloc[-1])
                 timestamp = hist.index[-1].to_pydatetime()
 
             return current_price, timestamp
 
         except Exception as e:
-            raise ValueError(f"Error fetching price for {symbol}: {str(e)}")
+            raise ValueError(f"Error fetching price for {symbol}: {e!s}")
 
-    def get_options_chain(self, symbol: str, expiry_date: Optional[str] = None) -> MarketDataResult:
+    def get_options_chain(self, symbol: str, expiry_date: str | None = None) -> MarketDataResult:
         """
         Get complete options chain for a symbol
 
@@ -222,9 +227,15 @@ class AdvancedMarketData:
             else:
                 if expiry_date not in expiry_dates:
                     # Find closest available expiry
-                    target_expiry = min(expiry_dates,
-                                      key=lambda x: abs((datetime.strptime(x, '%Y-%m-%d') -
-                                                        datetime.strptime(expiry_date, '%Y-%m-%d')).days))
+                    target_expiry = min(
+                        expiry_dates,
+                        key=lambda x: abs(
+                            (
+                                datetime.strptime(x, "%Y-%m-%d")
+                                - datetime.strptime(expiry_date, "%Y-%m-%d")
+                            ).days
+                        ),
+                    )
                 else:
                     target_expiry = expiry_date
 
@@ -242,16 +253,17 @@ class AdvancedMarketData:
                     try:
                         option = OptionData(
                             symbol=symbol,
-                            strike=self._safe_float(row.get('strike', 0)),
+                            strike=self._safe_float(row.get("strike", 0)),
                             expiry=target_expiry,
-                            option_type='call',
-                            last_price=self._safe_float(row.get('lastPrice', 0)),
-                            bid=self._safe_float(row.get('bid', 0)),
-                            ask=self._safe_float(row.get('ask', 0)),
-                            volume=self._safe_int(row.get('volume', 0)),
-                            open_interest=self._safe_int(row.get('openInterest', 0)),
-                            implied_volatility=self._safe_float(row.get('impliedVolatility'))
-                                               if pd.notna(row.get('impliedVolatility')) else None
+                            option_type="call",
+                            last_price=self._safe_float(row.get("lastPrice", 0)),
+                            bid=self._safe_float(row.get("bid", 0)),
+                            ask=self._safe_float(row.get("ask", 0)),
+                            volume=self._safe_int(row.get("volume", 0)),
+                            open_interest=self._safe_int(row.get("openInterest", 0)),
+                            implied_volatility=self._safe_float(row.get("impliedVolatility"))
+                            if pd.notna(row.get("impliedVolatility"))
+                            else None,
                         )
 
                         # Only add if strike is valid
@@ -267,16 +279,17 @@ class AdvancedMarketData:
                     try:
                         option = OptionData(
                             symbol=symbol,
-                            strike=self._safe_float(row.get('strike', 0)),
+                            strike=self._safe_float(row.get("strike", 0)),
                             expiry=target_expiry,
-                            option_type='put',
-                            last_price=self._safe_float(row.get('lastPrice', 0)),
-                            bid=self._safe_float(row.get('bid', 0)),
-                            ask=self._safe_float(row.get('ask', 0)),
-                            volume=self._safe_int(row.get('volume', 0)),
-                            open_interest=self._safe_int(row.get('openInterest', 0)),
-                            implied_volatility=self._safe_float(row.get('impliedVolatility'))
-                                               if pd.notna(row.get('impliedVolatility')) else None
+                            option_type="put",
+                            last_price=self._safe_float(row.get("lastPrice", 0)),
+                            bid=self._safe_float(row.get("bid", 0)),
+                            ask=self._safe_float(row.get("ask", 0)),
+                            volume=self._safe_int(row.get("volume", 0)),
+                            open_interest=self._safe_int(row.get("openInterest", 0)),
+                            implied_volatility=self._safe_float(row.get("impliedVolatility"))
+                            if pd.notna(row.get("impliedVolatility"))
+                            else None,
                         )
 
                         # Only add if strike is valid
@@ -289,7 +302,11 @@ class AdvancedMarketData:
             # Assess data quality
             if options_data:
                 valid_prices = [opt for opt in options_data if opt.last_price > 0]
-                valid_ivs = [opt for opt in options_data if opt.implied_volatility is not None and opt.implied_volatility > 0]
+                valid_ivs = [
+                    opt
+                    for opt in options_data
+                    if opt.implied_volatility is not None and opt.implied_volatility > 0
+                ]
 
                 price_quality = len(valid_prices) / len(options_data)
                 iv_quality = len(valid_ivs) / len(options_data)
@@ -313,7 +330,7 @@ class AdvancedMarketData:
                 timestamp=timestamp,
                 total_options=len(options_data),
                 data_quality=data_quality,
-                market_status=market_status
+                market_status=market_status,
             )
 
             # Rate limiting
@@ -322,10 +339,11 @@ class AdvancedMarketData:
             return result
 
         except Exception as e:
-            raise ValueError(f"Error fetching options chain for {symbol}: {str(e)}")
+            raise ValueError(f"Error fetching options chain for {symbol}: {e!s}")
 
-    def build_volatility_surface_from_market(self, symbol: str,
-                                           max_expiries: int = 4) -> Dict[str, Union[str, float, List[Dict]]]:
+    def build_volatility_surface_from_market(
+        self, symbol: str, max_expiries: int = 4
+    ) -> dict[str, str | float | list[dict]]:
         """
         Build volatility surface from live market data
 
@@ -354,56 +372,59 @@ class AdvancedMarketData:
             print(f"Processing {len(expiry_dates)} expiry dates...")
 
             for i, expiry in enumerate(expiry_dates):
-                print(f"   Processing {expiry} ({i+1}/{len(expiry_dates)})...")
+                print(f"   Processing {expiry} ({i + 1}/{len(expiry_dates)})...")
 
                 try:
                     market_data = self.get_options_chain(symbol, expiry)
 
                     # Calculate time to expiry
-                    expiry_date = datetime.strptime(expiry, '%Y-%m-%d')
+                    expiry_date = datetime.strptime(expiry, "%Y-%m-%d")
                     time_to_expiry = (expiry_date - datetime.now()).days / 365.25
 
                     # Filter for options with valid data
                     for option in market_data.options_data:
                         # More lenient filtering for market closed scenarios
-                        if (option.strike > 0 and
-                            (option.last_price > 0 or option.bid > 0 or option.ask > 0)):
-
+                        if option.strike > 0 and (
+                            option.last_price > 0 or option.bid > 0 or option.ask > 0
+                        ):
                             # Use mid price if available, otherwise last price
                             if option.bid > 0 and option.ask > 0:
                                 market_price = (option.bid + option.ask) / 2
                             else:
                                 market_price = option.last_price
 
-                            surface_data.append({
-                                'strike': option.strike,
-                                'expiry': time_to_expiry,
-                                'volatility': option.implied_volatility or 0.25,  # Default if missing
-                                'market_price': market_price,
-                                'option_type': option.option_type,
-                                'volume': option.volume,
-                                'open_interest': option.open_interest
-                            })
+                            surface_data.append(
+                                {
+                                    "strike": option.strike,
+                                    "expiry": time_to_expiry,
+                                    "volatility": option.implied_volatility
+                                    or 0.25,  # Default if missing
+                                    "market_price": market_price,
+                                    "option_type": option.option_type,
+                                    "volume": option.volume,
+                                    "open_interest": option.open_interest,
+                                }
+                            )
 
                     time.sleep(self.rate_limit_delay)  # Rate limiting
 
                 except Exception as e:
-                    print(f"   Error processing {expiry}: {str(e)}")
+                    print(f"   Error processing {expiry}: {e!s}")
                     continue
 
             print(f"Surface built with {len(surface_data)} data points")
 
             return {
-                'symbol': symbol,
-                'spot_price': spot_price,
-                'surface_data': surface_data,
-                'timestamp': datetime.now(),
-                'risk_free_rate': self._get_risk_free_rate(),
-                'market_status': market_status
+                "symbol": symbol,
+                "spot_price": spot_price,
+                "surface_data": surface_data,
+                "timestamp": datetime.now(),
+                "risk_free_rate": self._get_risk_free_rate(),
+                "market_status": market_status,
             }
 
         except Exception as e:
-            raise ValueError(f"Error building volatility surface: {str(e)}")
+            raise ValueError(f"Error building volatility surface: {e!s}")
 
     def get_historical_volatility(self, symbol: str, days: int = 30) -> float:
         """
@@ -423,7 +444,7 @@ class AdvancedMarketData:
         """
         try:
             ticker = _yf().Ticker(symbol)
-            hist = ticker.history(period=f"{max(days*2, 60)}d")  # Get extra data for safety
+            hist = ticker.history(period=f"{max(days * 2, 60)}d")  # Get extra data for safety
 
             if len(hist) < days:
                 # If not enough data, use what we have
@@ -432,7 +453,7 @@ class AdvancedMarketData:
                     raise ValueError(f"Insufficient historical data for {symbol}")
 
             # Calculate daily returns
-            prices = hist['Close'].tail(days + 1)
+            prices = hist["Close"].tail(days + 1)
             returns = np.log(prices / prices.shift(1)).dropna()
 
             # Annualized volatility
@@ -442,9 +463,9 @@ class AdvancedMarketData:
             return float(annual_vol)
 
         except Exception as e:
-            raise ValueError(f"Error calculating historical volatility: {str(e)}")
+            raise ValueError(f"Error calculating historical volatility: {e!s}")
 
-    def market_summary(self, symbol: str) -> Dict[str, Union[str, float, int]]:
+    def market_summary(self, symbol: str) -> dict[str, str | float | int]:
         """
         Get comprehensive market summary
 
@@ -476,41 +497,49 @@ class AdvancedMarketData:
                 options_data = self.get_options_chain(symbol)
 
                 # Calculate average implied volatility
-                valid_ivs = [opt.implied_volatility for opt in options_data.options_data
-                           if opt.implied_volatility is not None and opt.implied_volatility > 0]
+                valid_ivs = [
+                    opt.implied_volatility
+                    for opt in options_data.options_data
+                    if opt.implied_volatility is not None and opt.implied_volatility > 0
+                ]
                 avg_iv = np.mean(valid_ivs) if valid_ivs else None
 
                 return {
-                    'symbol': symbol,
-                    'spot_price': spot_price,
-                    'timestamp': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                    'market_status': market_status,
-                    'options_available': len(options_data.options_data),
-                    'data_quality': options_data.data_quality,
-                    'historical_volatility_30d': hist_vol,
-                    'average_implied_volatility': avg_iv,
-                    'risk_free_rate': risk_free_rate,
-                    'total_volume': sum(opt.volume for opt in options_data.options_data),
-                    'total_open_interest': sum(opt.open_interest for opt in options_data.options_data),
-                    'expiry_date': options_data.options_data[0].expiry if options_data.options_data else None
+                    "symbol": symbol,
+                    "spot_price": spot_price,
+                    "timestamp": timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                    "market_status": market_status,
+                    "options_available": len(options_data.options_data),
+                    "data_quality": options_data.data_quality,
+                    "historical_volatility_30d": hist_vol,
+                    "average_implied_volatility": avg_iv,
+                    "risk_free_rate": risk_free_rate,
+                    "total_volume": sum(opt.volume for opt in options_data.options_data),
+                    "total_open_interest": sum(
+                        opt.open_interest for opt in options_data.options_data
+                    ),
+                    "expiry_date": options_data.options_data[0].expiry
+                    if options_data.options_data
+                    else None,
                 }
 
             except Exception:
                 # If options data fails, return basic summary
                 return {
-                    'symbol': symbol,
-                    'spot_price': spot_price,
-                    'timestamp': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                    'market_status': market_status,
-                    'historical_volatility_30d': hist_vol,
-                    'risk_free_rate': risk_free_rate,
-                    'options_available': 0,
-                    'data_quality': 'Unavailable',
-                    'note': 'Options data temporarily unavailable'
+                    "symbol": symbol,
+                    "spot_price": spot_price,
+                    "timestamp": timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                    "market_status": market_status,
+                    "historical_volatility_30d": hist_vol,
+                    "risk_free_rate": risk_free_rate,
+                    "options_available": 0,
+                    "data_quality": "Unavailable",
+                    "note": "Options data temporarily unavailable",
                 }
 
         except Exception as e:
-            return {'error': str(e)}
+            return {"error": str(e)}
+
 
 if __name__ == "__main__":
     # Example usage and testing
@@ -540,7 +569,7 @@ if __name__ == "__main__":
         # Get comprehensive market summary
         summary = market_data.market_summary(symbol)
 
-        if 'error' in summary:
+        if "error" in summary:
             print(f"Error: {summary['error']}")
         else:
             print(f"Current Price:        ${summary['spot_price']:.2f}")
@@ -548,24 +577,24 @@ if __name__ == "__main__":
             print(f"Historical Vol (30d): {summary['historical_volatility_30d']:.1%}")
             print(f"Risk-Free Rate:       {summary['risk_free_rate']:.2%}")
 
-            if summary.get('options_available', 0) > 0:
+            if summary.get("options_available", 0) > 0:
                 print(f"Options Available:    {summary['options_available']}")
                 print(f"Data Quality:         {summary['data_quality']}")
                 print(f"Nearest Expiry:       {summary.get('expiry_date', 'N/A')}")
 
-                if summary.get('average_implied_volatility'):
+                if summary.get("average_implied_volatility"):
                     print(f"Average Implied Vol:  {summary['average_implied_volatility']:.1%}")
 
-                if summary.get('total_volume', 0) > 0:
+                if summary.get("total_volume", 0) > 0:
                     print(f"Total Volume:         {summary['total_volume']:,}")
                     print(f"Total Open Interest:  {summary['total_open_interest']:,}")
             else:
                 print(f" Options Data:        {summary.get('data_quality', 'Limited')}")
-                if 'note' in summary:
+                if "note" in summary:
                     print(f" Note:                {summary['note']}")
 
         # Try to get sample options chain
-        print(f"\nOptions Chain Sample:")
+        print("\nOptions Chain Sample:")
         print("-" * 65)
 
         try:
@@ -574,36 +603,49 @@ if __name__ == "__main__":
             if options_result.options_data:
                 # Show options around current price
                 spot = options_result.spot_price
-                relevant_options = [opt for opt in options_result.options_data
-                                  if abs(opt.strike - spot) / spot < 0.1 and opt.strike > 0][:10]
+                relevant_options = [
+                    opt
+                    for opt in options_result.options_data
+                    if abs(opt.strike - spot) / spot < 0.1 and opt.strike > 0
+                ][:10]
 
                 if relevant_options:
-                    print(f"{'Type':<4} {'Strike':<8} {'Last':<8} {'Bid':<6} {'Ask':<6} {'IV':<8} {'Vol':<6}")
+                    print(
+                        f"{'Type':<4} {'Strike':<8} {'Last':<8} {'Bid':<6} {'Ask':<6} {'IV':<8} {'Vol':<6}"
+                    )
                     print("-" * 65)
 
                     for option in relevant_options:
-                        iv_str = f"{option.implied_volatility:.1%}" if option.implied_volatility else "N/A"
-                        print(f"{option.option_type:<4} {option.strike:<8.0f} "
-                              f"${option.last_price:<7.2f} ${option.bid:<5.2f} ${option.ask:<5.2f} "
-                              f"{iv_str:<8} {option.volume:<6}")
+                        iv_str = (
+                            f"{option.implied_volatility:.1%}"
+                            if option.implied_volatility
+                            else "N/A"
+                        )
+                        print(
+                            f"{option.option_type:<4} {option.strike:<8.0f} "
+                            f"${option.last_price:<7.2f} ${option.bid:<5.2f} ${option.ask:<5.2f} "
+                            f"{iv_str:<8} {option.volume:<6}"
+                        )
                 else:
                     print("Options data available but limited liquidity around current price")
             else:
                 print("No options data available for display")
 
-        except Exception as e:
+        except Exception:
             print(f"Options display unavailable: Limited data during {market_status.lower()}")
 
-        print(f"\nMARKET DATA INTEGRATION STATUS:")
+        print("\nMARKET DATA INTEGRATION STATUS:")
         print("-" * 50)
         print("Stock price data: Working")
         print("Historical volatility: Working")
         print("Risk-free rate: Working")
-        print(f"{'' if summary.get('options_available', 0) > 0 else ''} Options data: {'Available' if summary.get('options_available', 0) > 0 else 'Limited'}")
+        print(
+            f"{'' if summary.get('options_available', 0) > 0 else ''} Options data: {'Available' if summary.get('options_available', 0) > 0 else 'Limited'}"
+        )
         print()
         print("Market data integration ready!")
         print("Perfect for real-time derivatives analytics!")
 
     except Exception as e:
-        print(f"Error: {str(e)}")
+        print(f"Error: {e!s}")
         print("Check internet connection and symbol validity")

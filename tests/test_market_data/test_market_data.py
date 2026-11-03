@@ -25,7 +25,7 @@ def test_is_market_open_returns_status():
 def test_get_current_price_live():
     md = AdvancedMarketData()
     try:
-        price, _ = md.get_current_price('AAPL')
+        price, _ = md.get_current_price("AAPL")
     except Exception:
         pytest.skip("network/market data unavailable")
     assert price > 0
@@ -35,7 +35,7 @@ def test_get_current_price_live():
 def test_historical_volatility_live():
     md = AdvancedMarketData()
     try:
-        vol = md.get_historical_volatility('AAPL', days=30)
+        vol = md.get_historical_volatility("AAPL", days=30)
     except Exception:
         pytest.skip("network/market data unavailable")
     assert vol > 0
@@ -47,8 +47,9 @@ def test_imports_without_yfinance():
     import subprocess
     import sys
     import textwrap
+
     code = textwrap.dedent(
-        '''
+        """
         import sys
         class _Block:
             def find_spec(self, name, path=None, target=None):
@@ -63,7 +64,7 @@ def test_imports_without_yfinance():
         from derivflow.utils.market_data import AdvancedMarketData
         AdvancedMarketData()  # constructor must not require yfinance
         print("IMPORT_OK")
-        '''
+        """
     )
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr

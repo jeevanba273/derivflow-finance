@@ -17,13 +17,13 @@ from derivflow import DerivativesDashboard, quick_payoff_plot, quick_greeks_plot
 
 # One-liners
 payoff = quick_payoff_plot(strike=105, premium=3.2, option_type="call")
-greeks = quick_greeks_plot(S=100, K=105, T=0.25, r=0.05, sigma=0.2,
-                           option_type="call")
+greeks = quick_greeks_plot(S=100, K=105, T=0.25, r=0.05, sigma=0.2, option_type="call")
 
 # Full dashboard object
 dash = DerivativesDashboard(theme="plotly_dark")
-fig = dash.plot_price_sensitivity(S=100, K=105, T=0.25, r=0.05, sigma=0.2,
-                                  option_type="call", param="spot")
+fig = dash.plot_price_sensitivity(
+    S=100, K=105, T=0.25, r=0.05, sigma=0.2, option_type="call", param="spot"
+)
 fig.show()
 ```
 

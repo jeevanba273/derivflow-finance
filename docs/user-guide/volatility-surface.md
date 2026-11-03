@@ -41,8 +41,7 @@ over array inputs; and `implied_vol_from_chain` inverts a whole option chain.
 ```python
 from derivflow import implied_volatility, implied_vol_from_chain
 
-iv = implied_volatility(price=5.0, S=100, K=100, T=0.5, r=0.03,
-                        option_type="call", q=0.0)
+iv = implied_volatility(price=5.0, S=100, K=100, T=0.5, r=0.03, option_type="call", q=0.0)
 print(f"Implied vol: {iv:.4f}")
 ```
 
@@ -54,7 +53,7 @@ directly into `VolatilitySurface.load_market_data`:
 
 ```python
 chain = [
-    {"strike": 95,  "expiry": 0.25, "option_type": "call", "market_price": 7.1},
+    {"strike": 95, "expiry": 0.25, "option_type": "call", "market_price": 7.1},
     {"strike": 100, "expiry": 0.25, "option_type": "call", "market_price": 4.2},
     {"strike": 105, "expiry": 0.25, "option_type": "call", "market_price": 2.3},
 ]

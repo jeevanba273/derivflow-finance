@@ -13,19 +13,17 @@ from derivflow import HestonModel
 
 heston = HestonModel()
 heston.set_parameters(
-    v0=0.04,     # initial variance
-    kappa=2.0,   # mean-reversion speed
+    v0=0.04,  # initial variance
+    kappa=2.0,  # mean-reversion speed
     theta=0.04,  # long-run variance
-    sigma=0.3,   # vol of vol
-    rho=-0.7,    # leverage correlation
+    sigma=0.3,  # vol of vol
+    rho=-0.7,  # leverage correlation
 )
 
-mc = heston.price_option(S=100, K=105, T=0.25, r=0.05,
-                         option_type="call", method="monte_carlo")
+mc = heston.price_option(S=100, K=105, T=0.25, r=0.05, option_type="call", method="monte_carlo")
 print(f"Heston Monte Carlo price: {mc.price:.4f}")
 
-fourier = heston.price_option(S=100, K=105, T=0.25, r=0.05,
-                              option_type="call", method="fourier")
+fourier = heston.price_option(S=100, K=105, T=0.25, r=0.05, option_type="call", method="fourier")
 print(f"Heston Fourier price:     {fourier.price:.4f}")
 ```
 

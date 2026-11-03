@@ -22,5 +22,5 @@ def test_build_and_interpolate():
 def test_surface_statistics():
     surface = create_sample_surface()
     stats = surface.surface_statistics()
-    assert stats['num_points'] == 36
-    assert 0 < stats['min_volatility'] <= stats['mean_volatility'] <= stats['max_volatility']
+    assert stats["num_points"] == 36
+    assert 0 < stats["min_volatility"] <= stats["mean_volatility"] <= stats["max_volatility"]

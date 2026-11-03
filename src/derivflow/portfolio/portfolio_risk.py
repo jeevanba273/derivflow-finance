@@ -60,7 +60,14 @@ class Position:
 
 @dataclass
 class RiskMetrics:
-    """Portfolio risk metrics container"""
+    """Portfolio risk report (see :meth:`PortfolioRiskAnalyzer.generate_risk_report`).
+
+    VaR and expected shortfall are 1-day delta-normal values, positive losses.
+    ``risk_contributions`` maps each underlying to its component (Euler) 95%
+    VaR; the components sum to ``var_95``. ``portfolio_volatility`` is the
+    1-day standard deviation of P&L in currency units. Greeks are summed over
+    positions (see :meth:`PortfolioRiskAnalyzer.calculate_portfolio_greeks`).
+    """
 
     portfolio_value: float
 
@@ -79,12 +86,7 @@ class RiskMetrics:
 
     # Risk decomposition
     risk_contributions: dict[str, float] | None = None
-    correlation_matrix: np.ndarray | None = None
-
-    # Additional metrics
     portfolio_volatility: float | None = None
-    sharpe_ratio: float | None = None
-    max_drawdown: float | None = None
 
 
 @dataclass
@@ -338,24 +340,39 @@ class PortfolioRiskAnalyzer:
 
         return total_value
 
+    def calculate_greeks_by_underlying(self) -> dict[str, dict[str, float]]:
+        """Greeks per underlying, in position units.
+
+        delta and gamma are in shares of the underlying (stock delta 1, option
+        Greeks times quantity times the contract multiplier); theta, vega and
+        rho are in currency per day, per vol point and per rate point, as in
+        :class:`~derivflow.greeks.calculator.GreeksResult`.
+        """
+        names = ("delta", "gamma", "theta", "vega", "rho")
+        out = {sym: dict.fromkeys(names, 0.0) for sym in self.underlyings()}
+        for p in self.positions:
+            g = out[p.symbol]
+            if p.position_type == "stock":
+                g["delta"] += p.quantity
+            elif p.position_type == "option":
+                units = p.quantity * self.contract_multiplier
+                for name in names:
+                    g[name] += units * (getattr(p, name) or 0.0)
+        return out
+
     def calculate_portfolio_greeks(self) -> dict[str, float]:
-        """Calculate aggregated portfolio Greeks"""
-        portfolio_greeks = {"delta": 0.0, "gamma": 0.0, "theta": 0.0, "vega": 0.0, "rho": 0.0}
+        """Greeks summed over all positions.
 
-        for position in self.positions:
-            if position.position_type == "stock":
-                # Stock contributes only to delta
-                portfolio_greeks["delta"] += position.quantity * 1.0
-            elif position.position_type == "option":
-                # Options contribute to all Greeks
-                multiplier = position.quantity * 100  # Contract multiplier
-                portfolio_greeks["delta"] += multiplier * (position.delta or 0)
-                portfolio_greeks["gamma"] += multiplier * (position.gamma or 0)
-                portfolio_greeks["theta"] += multiplier * (position.theta or 0)
-                portfolio_greeks["vega"] += multiplier * (position.vega or 0)
-                portfolio_greeks["rho"] += multiplier * (position.rho or 0)
-
-        return portfolio_greeks
+        theta, vega and rho add up across underlyings. delta and gamma are in
+        shares of each underlying, so their sum is only meaningful for a book
+        on a single underlying; use :meth:`calculate_greeks_by_underlying` or
+        :meth:`dollar_delta_by_underlying` otherwise.
+        """
+        total = dict.fromkeys(("delta", "gamma", "theta", "vega", "rho"), 0.0)
+        for greeks in self.calculate_greeks_by_underlying().values():
+            for name, value in greeks.items():
+                total[name] += value
+        return total
 
     def calculate_var_parametric(
         self, confidence_level: float = 0.95, time_horizon: int = 1
@@ -544,102 +561,69 @@ class PortfolioRiskAnalyzer:
 
         return results
 
-    def calculate_hedge_ratio(self, hedge_symbol: str) -> dict[str, float]:
+    def calculate_hedge_ratio(self, hedge_symbol: str) -> dict[str, float | str]:
         """
-        Calculate optimal hedge ratio to delta-hedge the portfolio
-
-        Parameters:
-        -----------
-        hedge_symbol : str
-            Symbol to use for hedging (usually the underlying)
+        Shares of ``hedge_symbol`` that make the book delta-neutral in that
+        underlying (positions in other underlyings are not affected).
 
         Returns:
         --------
-        Dict[str, float]
-            Hedging recommendations
+        Dict
+            'hedge_symbol', 'hedge_quantity' (shares, negative = sell),
+            'hedge_notional', 'current_portfolio_delta' and
+            'hedged_portfolio_delta' (both in shares of ``hedge_symbol``).
         """
-        greeks = self.calculate_portfolio_greeks()
-        portfolio_delta = greeks["delta"]
-
-        # Find the underlying position to get current price
-        underlying_price = None
-        for position in self.positions:
-            if position.symbol == hedge_symbol:
-                underlying_price = position.current_price
-                break
-
-        if underlying_price is None:
+        by_underlying = self.calculate_greeks_by_underlying()
+        if hedge_symbol not in by_underlying:
             raise ValueError(f"No position found for hedge symbol: {hedge_symbol}")
-
-        # Calculate hedge ratio
-        # To delta-hedge: hedge_quantity = -portfolio_delta
-        hedge_quantity = -portfolio_delta
-        hedge_notional = hedge_quantity * underlying_price
-
+        delta = by_underlying[hedge_symbol]["delta"]
+        hedge_quantity = -delta
         return {
             "hedge_symbol": hedge_symbol,
             "hedge_quantity": hedge_quantity,
-            "hedge_notional": hedge_notional,
-            "current_portfolio_delta": portfolio_delta,
-            "hedged_portfolio_delta": portfolio_delta + hedge_quantity,
+            "hedge_notional": hedge_quantity * self._underlying_spot(hedge_symbol),
+            "current_portfolio_delta": delta,
+            "hedged_portfolio_delta": delta + hedge_quantity,
         }
 
+    def var_contributions(
+        self, confidence_level: float = 0.95, time_horizon: int = 1
+    ) -> dict[str, float]:
+        """Component (Euler) delta-normal VaR per underlying.
+
+        contribution_i = z_c * sqrt(h) * e_i (Sigma e)_i / sqrt(e^T Sigma e),
+        which sums to the parametric VaR (Jorion, Value at Risk, ch. 7).
+        """
+        _check_var_inputs(confidence_level, time_horizon)
+        symbols = self.underlyings()
+        exposure = self.dollar_delta_by_underlying()
+        e = np.array([exposure[sym] for sym in symbols])
+        cov = self._daily_covariance(symbols)
+        sigma = float(np.sqrt(max(float(e @ cov @ e), 0.0)))
+        if sigma == 0.0:
+            return dict.fromkeys(symbols, 0.0)
+        scale = stats.norm.ppf(confidence_level) * np.sqrt(time_horizon) / sigma
+        return {sym: float(scale * e[n] * (cov @ e)[n]) for n, sym in enumerate(symbols)}
+
     def generate_risk_report(self) -> RiskMetrics:
-        """
-        Generate comprehensive risk report
-
-        Returns:
-        --------
-        RiskMetrics
-            Complete risk metrics
-        """
-        # Portfolio value
-        portfolio_value = self.calculate_portfolio_value()
-
-        # Portfolio Greeks
+        """Value, summed Greeks, 1-day delta-normal VaR/ES at 95% and 99%,
+        component VaR per underlying and 1-day P&L volatility."""
         greeks = self.calculate_portfolio_greeks()
-
-        # VaR calculations
-        try:
-            var_95_param, es_95_param = self.calculate_var_parametric(0.95)
-            var_99_param, es_99_param = self.calculate_var_parametric(0.99)
-        except Exception:
-            var_95_param = var_99_param = es_95_param = es_99_param = None
-
-        # Risk contributions (simplified)
-        risk_contributions = {}
-        for i, position in enumerate(self.positions):
-            position_value = 0
-            if position.position_type == "stock":
-                position_value = abs(position.quantity * position.current_price)
-            elif position.position_type == "option":
-                option_price = price_european_option(
-                    position.current_price,
-                    position.strike,
-                    position.expiry,
-                    position.risk_free_rate,
-                    position.volatility,
-                    position.option_type,
-                    q=position.dividend_yield or 0.0,
-                )
-                position_value = abs(position.quantity * option_price * 100)
-
-            risk_contributions[f"{position.symbol}_{i}"] = (
-                position_value / portfolio_value if portfolio_value > 0 else 0
-            )
-
+        var_95, es_95 = self.calculate_var_parametric(0.95)
+        var_99, es_99 = self.calculate_var_parametric(0.99)
         return RiskMetrics(
-            portfolio_value=portfolio_value,
-            var_95=var_95_param,
-            var_99=var_99_param,
-            expected_shortfall_95=es_95_param,
-            expected_shortfall_99=es_99_param,
+            portfolio_value=self.calculate_portfolio_value(),
+            var_95=var_95,
+            var_99=var_99,
+            expected_shortfall_95=es_95,
+            expected_shortfall_99=es_99,
             portfolio_delta=greeks["delta"],
             portfolio_gamma=greeks["gamma"],
             portfolio_theta=greeks["theta"],
             portfolio_vega=greeks["vega"],
             portfolio_rho=greeks["rho"],
-            risk_contributions=risk_contributions,
+            risk_contributions=self.var_contributions(0.95),
+            portfolio_volatility=var_95 / stats.norm.ppf(0.95) if var_95 else 0.0,
         )
 
 

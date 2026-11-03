@@ -43,3 +43,36 @@ def test_dividend_yield_consistent_in_valuation():
     assert analyzer.calculate_portfolio_value() == pytest.approx(expected, rel=1e-9)
     # And the report's portfolio_value uses the same q-aware basis.
     assert analyzer.generate_risk_report().portfolio_value == pytest.approx(expected, rel=1e-9)
+
+
+def _two_underlying_book():
+    pa = PortfolioRiskAnalyzer(risk_free_rate=0.05)
+    pa.add_option_position("AAPL", 10, 150.0, 155.0, 0.25, "call", 0.25)
+    pa.add_stock_position("MSFT", 100, 300.0, 0.22)
+    return pa
+
+
+def test_hedge_ratio_only_uses_the_hedged_underlying():
+    pa = _two_underlying_book()
+    call_delta = GreeksCalculator().calculate_greeks(150.0, 155.0, 0.25, 0.05, 0.25, "call").delta
+    hedge = pa.calculate_hedge_ratio("AAPL")
+    assert hedge["current_portfolio_delta"] == pytest.approx(10 * 100 * call_delta, rel=1e-12)
+    assert hedge["hedge_quantity"] == pytest.approx(-10 * 100 * call_delta, rel=1e-12)
+    assert hedge["hedged_portfolio_delta"] == pytest.approx(0.0, abs=1e-9)
+    assert pa.calculate_hedge_ratio("MSFT")["hedge_quantity"] == pytest.approx(-100.0)
+
+
+def test_greeks_by_underlying():
+    pa = _two_underlying_book()
+    by = pa.calculate_greeks_by_underlying()
+    assert set(by) == {"AAPL", "MSFT"}
+    assert by["MSFT"]["delta"] == pytest.approx(100.0)
+    assert by["MSFT"]["gamma"] == 0.0
+
+
+def test_risk_contributions_are_component_var_and_sum_to_var():
+    pa = _two_underlying_book()
+    pa.set_correlation(["AAPL", "MSFT"], [[1.0, 0.5], [0.5, 1.0]])
+    report = pa.generate_risk_report()
+    assert set(report.risk_contributions) == {"AAPL", "MSFT"}
+    assert sum(report.risk_contributions.values()) == pytest.approx(report.var_95, rel=1e-12)

@@ -31,6 +31,7 @@ from importlib import metadata
 from typing import Any
 
 import numpy as np
+from scipy.special import ndtr
 from scipy.stats import norm
 
 import derivflow
@@ -198,8 +199,16 @@ def random_inputs(n: int, seed: int = 0) -> dict[str, np.ndarray]:
     }
 
 
-def numpy_scipy_bs(S, K, T, r, sigma, q):
-    """Textbook NumPy/SciPy Black-Scholes-Merton call (the plain baseline)."""
+def numpy_scipy_bs_ndtr(S, K, T, r, sigma, q):
+    """Plain NumPy/SciPy Black-Scholes-Merton call with scipy.special.ndtr, the same
+    normal CDF derivflow uses (the like-for-like baseline)."""
+    d1 = (np.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    return S * np.exp(-q * T) * ndtr(d1) - K * np.exp(-r * T) * ndtr(d2)
+
+
+def numpy_scipy_bs_textbook(S, K, T, r, sigma, q):
+    """The same formula in its common textbook form, with scipy.stats.norm.cdf."""
     d1 = (np.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
     d2 = d1 - sigma * np.sqrt(T)
     return S * np.exp(-q * T) * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
@@ -255,8 +264,29 @@ def bench_pricing(reps: int, quick: bool) -> dict[str, Any]:
         reps,
     )
     rows.append(["derivflow `black_scholes_price` (vectorised)", f"{n_vec:,}", rate_cell(t, n_vec)])
-    t = timed(lambda: numpy_scipy_bs(x["S"], x["K"], x["T"], x["r"], x["sigma"], x["q"]), reps)
-    rows.append(["plain NumPy/SciPy formula (vectorised)", f"{n_vec:,}", rate_cell(t, n_vec)])
+    t = timed(lambda: numpy_scipy_bs_ndtr(x["S"], x["K"], x["T"], x["r"], x["sigma"], x["q"]), reps)
+    rows.append(
+        [
+            "plain NumPy/SciPy formula, `scipy.special.ndtr` (vectorised)",
+            f"{n_vec:,}",
+            rate_cell(t, n_vec),
+        ]
+    )
+    t = timed(
+        lambda: numpy_scipy_bs_textbook(x["S"], x["K"], x["T"], x["r"], x["sigma"], x["q"]), reps
+    )
+    rows.append(
+        [
+            "textbook NumPy/SciPy formula, `scipy.stats.norm.cdf` (vectorised)",
+            f"{n_vec:,}",
+            rate_cell(t, n_vec),
+        ]
+    )
+    notes.append(
+        "The `ndtr` row is the like-for-like baseline: the same normal CDF as derivflow, without "
+        "derivflow's input checks, broadcasting of all six inputs, expiry handling and call/put "
+        "branch. The `norm.cdf` row is the textbook form, which adds scipy.stats overhead."
+    )
 
     # Scalar: fixed strike and maturity, spot and vol vary (QuantLib reprices via quotes).
     xs = {k: v[:n_scalar] for k, v in x.items()}
@@ -320,7 +350,7 @@ def bench_pricing(reps: int, quick: bool) -> dict[str, Any]:
         n_acc = 2_000
         y = random_inputs(n_acc, seed=1)
         days = np.maximum(1, np.round(y["T"] * 365)).astype(int)
-        ours, ref, ref_np = [], [], []
+        ours, ref, ref_ndtr, ref_textbook = [], [], [], []
         today = ql.Date(15, 1, 2025)
         ql.Settings.instance().evaluationDate = today
         dc = ql.Actual365Fixed()
@@ -346,14 +376,16 @@ def bench_pricing(reps: int, quick: bool) -> dict[str, Any]:
                     y["S"][i], y["K"][i], Ti, y["r"][i], y["sigma"][i], "call", y["q"][i]
                 )
             )
-            ref_np.append(
-                numpy_scipy_bs(y["S"][i], y["K"][i], Ti, y["r"][i], y["sigma"][i], y["q"][i])
-            )
+            args = (y["S"][i], y["K"][i], Ti, y["r"][i], y["sigma"][i], y["q"][i])
+            ref_ndtr.append(numpy_scipy_bs_ndtr(*args))
+            ref_textbook.append(numpy_scipy_bs_textbook(*args))
         ref_a = np.array(ref)
         a, rel = err_cell(np.array(ours) - ref_a, ref_a)
         acc_rows.append(["derivflow vs QuantLib", f"{n_acc:,}", a, rel])
-        a, rel = err_cell(np.array(ref_np) - ref_a, ref_a)
-        acc_rows.append(["NumPy/SciPy formula vs QuantLib", f"{n_acc:,}", a, rel])
+        a, rel = err_cell(np.array(ref_ndtr) - ref_a, ref_a)
+        acc_rows.append(["NumPy/SciPy formula with `ndtr` vs QuantLib", f"{n_acc:,}", a, rel])
+        a, rel = err_cell(np.array(ref_textbook) - ref_a, ref_a)
+        acc_rows.append(["NumPy/SciPy formula with `norm.cdf` vs QuantLib", f"{n_acc:,}", a, rel])
     return {
         "rows": rows,
         "notes": notes,

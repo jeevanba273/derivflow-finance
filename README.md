@@ -125,23 +125,29 @@ standard error.
 
 ## Benchmarks
 
-Measured with `python benchmarks/run_benchmarks.py` on an Intel Core Ultra 9 185H, 31.5 GB RAM,
-Windows 11, Python 3.13.5, NumPy 2.5.4, SciPy 1.18.1, QuantLib 1.44, py_vollib 1.0.12;
-single-threaded, median of 7 runs after a warm-up. Full tables, spreads and method:
+Measured with `python benchmarks/run_benchmarks.py` on an Intel Core Ultra 9 185H (22 logical
+CPUs), 31.5 GB RAM, Windows 11, Python 3.13.5, NumPy 2.5.4, SciPy 1.18.1, QuantLib 1.44,
+py_vollib 1.0.12, single-threaded. Each comparison runs derivflow and its baselines in the same
+loop, 15 repetitions in rotating order; the table shows medians, and in brackets the median
+per-repetition ratio of the baseline's time to derivflow's (below 1 means faster than
+derivflow). Background load: OneDrive syncing, 16-31% total CPU during the run (median 19%);
+absolute rates may be lower than on an idle machine, the ratios are measured side by side.
+Full tables with ranges:
 [docs/benchmarks](https://derivflow-finance.readthedocs.io/en/latest/benchmarks.html).
 
-| operation | derivflow | baseline |
+| operation | derivflow | baselines (time / derivflow's) |
 |---|---|---|
-| European price, 1,000,000 options vectorised | 9.2 million/s | NumPy/SciPy formula: 7.8 million/s |
-| European price, scalar Python loop | 762,000/s | py_vollib 417,000/s; QuantLib via Python 292,000/s |
-| Implied volatility, scalar | 12.4 us per quote | py_vollib 19.8 us; QuantLib via Python 12.9 us |
-| Implied volatility, vectorised (99,825 quotes) | 4.2 us per quote | - |
-| American put, 2000-step tree | 33.3 ms | QuantLib CRR tree 14.4 ms |
-| Heston analytic call | 0.7 ms per price | QuantLib 0.4 ms |
+| European price, 1,000,000 options, vectorised | 8.9 million/s | plain formula with `scipy.special.ndtr` 12.6 million/s (0.71); textbook form with `scipy.stats.norm.cdf` 8.5 million/s (1.05) |
+| European price, scalar Python loop | 684,000/s | py_vollib 414,000/s (1.66); QuantLib via Python 275,000/s (2.46) |
+| Implied volatility, scalar | 12.5 us per quote | py_vollib 18.1 us (1.44); QuantLib via Python 12.6 us (1.02) |
+| Implied volatility, vectorised (99,825 quotes) | 3.9 us per quote | - |
+| American put, 2000-step tree | 28.3 ms | QuantLib CRR tree 14.7 ms (0.52) |
+| Heston analytic call | 0.8 ms per price | QuantLib 0.4 ms (0.49) |
 
-QuantLib's rows are driven from Python one option at a time and include binding overhead, and
-its tree uses a different up-probability, so those rows are not like-for-like. Where
-derivflow is slower (trees, Heston) the table says so.
+derivflow is slower than the plain `ndtr` formula, which skips its input checks, broadcasting
+and expiry handling, and slower than QuantLib's tree and Heston engine. QuantLib's rows are
+driven from Python one option at a time and include binding overhead, and its tree uses a
+different up-probability, so those rows are not like-for-like.
 
 ## Limitations
 

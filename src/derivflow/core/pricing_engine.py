@@ -18,16 +18,16 @@ reduction). :class:`PricingEngine` dispatches to them by name.
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any
 
 import numpy as np
-import scipy.stats as stats
 from numpy.typing import ArrayLike
 from scipy.special import ndtr
 
-from .._validation import check_live_inputs, check_market_inputs, check_option_type
+from .._validation import check_live_inputs, check_market_inputs, check_option_type, norm_cdf
 
 
 def black_scholes_price(
@@ -101,13 +101,13 @@ class BlackScholesAnalytical(PricingMethod):
 
     @staticmethod
     def _d1(S: float, K: float, T: float, r: float, sigma: float, q: float = 0.0) -> float:
-        """Calculate d1 parameter (generalized for continuous dividend yield q)"""
-        return (np.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+        """d1 = [ln(S/K) + (r - q + sigma^2/2) T] / (sigma sqrt(T))."""
+        return (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
 
     @staticmethod
     def _d2(S: float, K: float, T: float, r: float, sigma: float, q: float = 0.0) -> float:
-        """Calculate d2 parameter (generalized for continuous dividend yield q)"""
-        return BlackScholesAnalytical._d1(S, K, T, r, sigma, q) - sigma * np.sqrt(T)
+        """d2 = d1 - sigma sqrt(T)."""
+        return BlackScholesAnalytical._d1(S, K, T, r, sigma, q) - sigma * math.sqrt(T)
 
     def price(
         self,
@@ -148,15 +148,14 @@ class BlackScholesAnalytical(PricingMethod):
             return float(max(K - S, 0.0))
 
         d1 = self._d1(S, K, T, r, sigma, q)
-        d2 = self._d2(S, K, T, r, sigma, q)
-        discount_S = S * np.exp(-q * T)
+        d2 = d1 - sigma * math.sqrt(T)
+        discount_S = S * math.exp(-q * T)
+        discount_K = K * math.exp(-r * T)
 
         if option_type.lower() == "call":
-            price = discount_S * stats.norm.cdf(d1) - K * np.exp(-r * T) * stats.norm.cdf(d2)
-        elif option_type.lower() == "put":
-            price = K * np.exp(-r * T) * stats.norm.cdf(-d2) - discount_S * stats.norm.cdf(-d1)
+            price = discount_S * norm_cdf(d1) - discount_K * norm_cdf(d2)
         else:
-            raise ValueError("option_type must be 'call' or 'put'")
+            price = discount_K * norm_cdf(-d2) - discount_S * norm_cdf(-d1)
 
         return float(max(price, 0.0))
 

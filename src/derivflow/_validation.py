@@ -1,8 +1,26 @@
-"""Input checks shared by the pricers. All raise ValueError naming the parameter."""
+"""Input checks and scalar normal-distribution helpers shared by the pricers.
+
+The checks raise ValueError naming the parameter. ``norm_cdf`` and
+``norm_pdf`` use the ``math`` module, which is accurate in the tails (erfc)
+and avoids the per-call overhead of ``scipy.stats.norm`` on scalars.
+"""
 
 from __future__ import annotations
 
 import math
+
+_SQRT2 = math.sqrt(2.0)
+_INV_SQRT_2PI = 1.0 / math.sqrt(2.0 * math.pi)
+
+
+def norm_cdf(x: float) -> float:
+    """Standard normal CDF, 0.5 * erfc(-x / sqrt(2))."""
+    return 0.5 * math.erfc(-x / _SQRT2)
+
+
+def norm_pdf(x: float) -> float:
+    """Standard normal density."""
+    return _INV_SQRT_2PI * math.exp(-0.5 * x * x)
 
 
 def _positive(name: str, value: float, what: str) -> None:

@@ -26,14 +26,14 @@ against central finite differences of the price in the test suite.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-import scipy.stats as stats
 
-from .._validation import check_market_inputs, check_option_type
+from .._validation import check_market_inputs, check_option_type, norm_cdf, norm_pdf
 
 
 @dataclass
@@ -101,14 +101,14 @@ class GreeksCalculator:
             else:
                 return max(K - S, 0)
 
-        d1 = (np.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
-        d2 = d1 - sigma * np.sqrt(T)
-        disc_S = S * np.exp(-q * T)
+        d1 = (math.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
+        d2 = d1 - sigma * math.sqrt(T)
+        disc_S = S * math.exp(-q * T)
+        disc_K = K * math.exp(-r * T)
 
         if option_type.lower() == "call":
-            return disc_S * stats.norm.cdf(d1) - K * np.exp(-r * T) * stats.norm.cdf(d2)
-        else:
-            return K * np.exp(-r * T) * stats.norm.cdf(-d2) - disc_S * stats.norm.cdf(-d1)
+            return disc_S * norm_cdf(d1) - disc_K * norm_cdf(d2)
+        return disc_K * norm_cdf(-d2) - disc_S * norm_cdf(-d1)
 
     def analytical_greeks(
         self,
@@ -173,51 +173,51 @@ class GreeksCalculator:
                 rho=0.0,
             )
 
-        # Calculate d1 and d2 (generalized for continuous dividend yield q)
-        d1 = (np.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
-        d2 = d1 - sigma * np.sqrt(T)
-        disc_q = np.exp(-q * T)  # dividend discount factor
+        sqrt_t = math.sqrt(T)
+        d1 = (math.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * sqrt_t)
+        d2 = d1 - sigma * sqrt_t
+        disc_q = math.exp(-q * T)
+        disc_r = math.exp(-r * T)
 
-        # Standard normal PDF and CDF
-        phi_d1 = stats.norm.pdf(d1)
-        N_d1 = stats.norm.cdf(d1)
-        N_d2 = stats.norm.cdf(d2)
-        N_minus_d1 = stats.norm.cdf(-d1)
-        N_minus_d2 = stats.norm.cdf(-d2)
+        phi_d1 = norm_pdf(d1)
+        N_d1 = norm_cdf(d1)
+        N_d2 = norm_cdf(d2)
+        N_minus_d1 = norm_cdf(-d1)
+        N_minus_d2 = norm_cdf(-d2)
 
         # First-order Greeks
         if option_type.lower() == "call":
             delta = disc_q * N_d1
             theta = (
-                -disc_q * S * phi_d1 * sigma / (2 * np.sqrt(T))
-                - r * K * np.exp(-r * T) * N_d2
+                -disc_q * S * phi_d1 * sigma / (2 * sqrt_t)
+                - r * K * disc_r * N_d2
                 + q * S * disc_q * N_d1
             )
-            rho = K * T * np.exp(-r * T) * N_d2
+            rho = K * T * disc_r * N_d2
         else:  # put
             delta = disc_q * (N_d1 - 1)
             theta = (
-                -disc_q * S * phi_d1 * sigma / (2 * np.sqrt(T))
-                + r * K * np.exp(-r * T) * N_minus_d2
+                -disc_q * S * phi_d1 * sigma / (2 * sqrt_t)
+                + r * K * disc_r * N_minus_d2
                 - q * S * disc_q * N_minus_d1
             )
-            rho = -K * T * np.exp(-r * T) * N_minus_d2
+            rho = -K * T * disc_r * N_minus_d2
 
         # Second-order Greeks (same for calls and puts)
-        gamma = disc_q * phi_d1 / (S * sigma * np.sqrt(T))
-        vega = S * disc_q * phi_d1 * np.sqrt(T)
+        gamma = disc_q * phi_d1 / (S * sigma * sqrt_t)
+        vega = S * disc_q * phi_d1 * sqrt_t
 
         # Higher-order Greeks
         volga = vega * d1 * d2 / sigma  # Volga (vega sensitivity to vol)
         vanna = -disc_q * phi_d1 * d2 / sigma  # Vanna (delta sensitivity to vol)
 
         # Third-order Greeks
-        speed = -gamma * (d1 / (sigma * np.sqrt(T)) + 1) / S  # Speed (gamma sensitivity to spot)
+        speed = -gamma * (d1 / (sigma * sqrt_t) + 1) / S  # Speed (gamma sensitivity to spot)
         zomma = gamma * (d1 * d2 - 1) / sigma  # Zomma (gamma sensitivity to vol)
         # Color = dGamma/dt in calendar time (= -dGamma/dT), the same sign
         # convention as theta. Differentiating the gamma closed form in T gives
         # dGamma/dt = Gamma * (q + (r - q) d1 / (sigma sqrt(T)) + (1 - d1 d2) / (2 T)).
-        color = gamma * (q + (r - q) * d1 / (sigma * np.sqrt(T)) + (1 - d1 * d2) / (2 * T))
+        color = gamma * (q + (r - q) * d1 / (sigma * sqrt_t) + (1 - d1 * d2) / (2 * T))
 
         return GreeksResult(
             delta=delta,

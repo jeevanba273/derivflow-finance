@@ -15,6 +15,8 @@ from enum import Enum
 import numpy as np
 import scipy.stats as stats
 
+from .._validation import check_live_inputs, check_option_type
+
 
 class AsianType(Enum):
     """Asian option averaging types"""
@@ -120,6 +122,8 @@ class AsianOptions:
         AsianOptionResult
             Pricing result with analytical price
         """
+        check_live_inputs(S, K, T, sigma)
+        check_option_type(option_type)
         if average_type == "continuous":
             mean_time = T / 2.0
             var_g = sigma**2 * T / 3.0
@@ -218,6 +222,8 @@ class AsianOptions:
         AsianOptionResult
             Pricing result with Monte Carlo estimates
         """
+        check_live_inputs(S, K, T, sigma)
+        check_option_type(option_type)
         # Generate paths
         final_prices, arithmetic_avg, geometric_avg = self._generate_asian_paths(
             S, T, r, sigma, num_steps
@@ -319,6 +325,8 @@ class AsianOptions:
         """
         Price geometric average Asian option using Monte Carlo (for verification)
         """
+        check_live_inputs(S, K, T, sigma)
+        check_option_type(option_type)
         # Generate paths
         final_prices, arithmetic_avg, geometric_avg = self._generate_asian_paths(
             S, T, r, sigma, num_steps

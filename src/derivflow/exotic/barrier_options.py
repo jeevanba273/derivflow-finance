@@ -16,6 +16,8 @@ from enum import Enum
 import numpy as np
 import scipy.stats as stats
 
+from .._validation import check_market_inputs, check_option_type
+
 
 class BarrierType(Enum):
     """Enumeration of barrier option types"""
@@ -62,15 +64,30 @@ class BarrierOptions:
         self.rng = np.random.default_rng(random_seed)
 
     def _validate_barrier_parameters(
-        self, S: float, K: float, H: float, barrier_type: str, option_type: str
+        self,
+        S: float,
+        K: float,
+        H: float,
+        barrier_type: str,
+        option_type: str,
+        T: float = 1.0,
+        sigma: float | None = None,
     ) -> None:
-        """Validate barrier option parameters"""
-        if barrier_type.lower() in ["up_and_out", "up_and_in"]:
-            if H <= max(S, K):
-                warnings.warn(f"Up barrier ({H}) should be above max(S={S}, K={K})")
-        elif barrier_type.lower() in ["down_and_out", "down_and_in"]:
-            if H >= min(S, K):
-                warnings.warn(f"Down barrier ({H}) should be below min(S={S}, K={K})")
+        """Validate inputs; warn when the barrier is placed where it has no effect."""
+        check_market_inputs(S, K, T, sigma)
+        check_option_type(option_type)
+        if not (np.isfinite(H) and H > 0):
+            raise ValueError(f"H must be positive and finite (barrier level), got {H!r}")
+        bt = str(barrier_type).lower()
+        if bt not in ("up_and_out", "up_and_in", "down_and_out", "down_and_in"):
+            raise ValueError(
+                "barrier_type must be 'up_and_out', 'up_and_in', 'down_and_out' or "
+                f"'down_and_in', got {barrier_type!r}"
+            )
+        if bt.startswith("up") and H <= max(S, K):
+            warnings.warn(f"Up barrier ({H}) should be above max(S={S}, K={K})", stacklevel=3)
+        elif bt.startswith("down") and H >= min(S, K):
+            warnings.warn(f"Down barrier ({H}) should be below min(S={S}, K={K})", stacklevel=3)
 
     def analytical_price(
         self,
@@ -113,7 +130,7 @@ class BarrierOptions:
         BarrierOptionResult
             Complete pricing and risk results
         """
-        self._validate_barrier_parameters(S, K, H, barrier_type, option_type)
+        self._validate_barrier_parameters(S, K, H, barrier_type, option_type, T, sigma)
 
         if T <= 0:
             return self._handle_expiry(S, K, H, barrier_type, option_type)
@@ -283,6 +300,9 @@ class BarrierOptions:
         BarrierOptionResult
             Monte Carlo pricing results
         """
+        self._validate_barrier_parameters(S, K, H, barrier_type, option_type, T, sigma)
+        if T <= 0:
+            raise ValueError(f"T must be positive (years to expiry), got {T!r}")
         dt = T / num_steps
         discount_factor = np.exp(-r * T)
 

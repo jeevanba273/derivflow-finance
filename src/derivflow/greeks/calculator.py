@@ -11,6 +11,8 @@ from dataclasses import dataclass
 import numpy as np
 import scipy.stats as stats
 
+from .._validation import check_market_inputs, check_option_type
+
 
 @dataclass
 class GreeksResult:
@@ -117,6 +119,8 @@ class GreeksCalculator:
         GreeksResult
             Complete Greeks profile
         """
+        check_market_inputs(S, K, T, sigma)
+        check_option_type(option_type)
         if T <= 0:
             # At expiry the value is the payoff: delta is 1 for an in-the-money
             # call, -1 for an in-the-money put and 0 otherwise.
@@ -212,6 +216,9 @@ class GreeksCalculator:
         GreeksResult
             Numerically calculated Greeks
         """
+        check_market_inputs(
+            base_params["S"], base_params["K"], base_params["T"], base_params["sigma"]
+        )
         if bumps is None:
             bumps = self.default_bumps.copy()
 

@@ -18,6 +18,7 @@ import scipy.stats as stats
 from scipy import integrate
 from scipy.special import ndtri
 
+from .._validation import check_live_inputs, check_market_inputs, check_option_type
 
 
 def _heston_cf(u, T, params):
@@ -37,12 +38,7 @@ def _heston_cf(u, T, params):
     g = beta_minus_d / (beta + d)
     e = np.exp(-d * T)
     D = -a / (beta + d) * (1.0 - e) / (1.0 - g * e)
-    C = (
-        kappa
-        * theta
-        / sigma**2
-        * (beta_minus_d * T - 2.0 * (np.log1p(-g * e) - np.log1p(-g)))
-    )
+    C = kappa * theta / sigma**2 * (beta_minus_d * T - 2.0 * (np.log1p(-g * e) - np.log1p(-g)))
     return np.exp(C + D * v0)
 
 
@@ -120,6 +116,8 @@ class HestonModel:
             Correlation (-1 < rho < 1)
         """
         # Validate parameters
+        if not (np.isfinite(v0) and v0 >= 0):
+            raise ValueError(f"v0 (initial variance) must be non-negative, got {v0!r}")
         if not (kappa > 0 and theta > 0 and sigma > 0):
             raise ValueError("kappa, theta, and sigma must be positive")
         if not (-1 < rho < 1):
@@ -158,6 +156,8 @@ class HestonModel:
         logarithm. Puts follow from put-call parity. The integral is evaluated
         with adaptive quadrature (``scipy.integrate.quad``).
         """
+        check_market_inputs(S, K, T)
+        check_option_type(option_type)
         if self.params is None:
             raise ValueError("Parameters not set")
         call = heston_call_price(S, K, T, r, q, self.params)
@@ -202,8 +202,8 @@ class HestonModel:
             raise ValueError("Parameters not set")
         if num_sims < 2 or num_steps < 1:
             raise ValueError("num_sims must be >= 2 and num_steps >= 1")
-        if T <= 0:
-            raise ValueError("T must be positive")
+        check_live_inputs(S, K, T)
+        check_option_type(option_type)
 
         p = self.params
         v0, kappa, theta, sigma, rho = p.v0, p.kappa, p.theta, p.sigma, p.rho
@@ -333,8 +333,15 @@ class HestonModel:
             return out
 
         fit = least_squares(
-            residuals, x0, bounds=(lower, upper), method="trf", x_scale="jac",
-            xtol=1e-12, ftol=1e-12, gtol=1e-12, max_nfev=2000,
+            residuals,
+            x0,
+            bounds=(lower, upper),
+            method="trf",
+            x_scale="jac",
+            xtol=1e-12,
+            ftol=1e-12,
+            gtol=1e-12,
+            max_nfev=2000,
         )
         errors = residuals(fit.x)
         with warnings.catch_warnings():

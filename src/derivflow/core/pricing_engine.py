@@ -13,6 +13,8 @@ from typing import Any
 import numpy as np
 from numpy.typing import ArrayLike
 from scipy.special import ndtr
+
+from .._validation import check_live_inputs, check_market_inputs, check_option_type
 import scipy.stats as stats
 
 
@@ -62,14 +64,7 @@ def black_scholes_price(
 
 def _validate_market_inputs(S: float, K: float, T: float, sigma: float) -> None:
     """Raise ValueError for inputs outside the domain of the pricing formulas."""
-    if not (np.isfinite(S) and S > 0):
-        raise ValueError(f"spot S must be positive, got {S}")
-    if not (np.isfinite(K) and K > 0):
-        raise ValueError(f"strike K must be positive, got {K}")
-    if not (np.isfinite(T) and T > 0):
-        raise ValueError(f"time to expiry T must be positive (years), got {T}")
-    if not (np.isfinite(sigma) and sigma > 0):
-        raise ValueError(f"volatility sigma must be positive (annualised), got {sigma}")
+    check_live_inputs(S, K, T, sigma)
 
 
 class PricingMethod(ABC):
@@ -134,6 +129,8 @@ class BlackScholesAnalytical(PricingMethod):
         float
             Option price
         """
+        check_market_inputs(S, K, T, sigma)
+        check_option_type(option_type)
         if T <= 0:
             # Handle expiry
             if option_type.lower() == "call":

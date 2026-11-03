@@ -20,7 +20,9 @@ No solution exists when the price is outside the no-arbitrage bounds
 call or strike for a put). The volatility is not identifiable when the time
 value is below 1e-12 of the option price: it is then lost in floating-point
 rounding. In both cases :func:`implied_volatility` raises ``ValueError`` (or
-returns NaN with ``on_fail='nan'``).
+returns NaN with ``on_fail='nan'``). Just above that threshold, and generally
+where vega is tiny relative to the spot, the volatility is determined only to
+a few significant digits.
 
 Conventions: T in years, r and q continuously compounded annual rates, the
 result is an annualised volatility.

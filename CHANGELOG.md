@@ -46,6 +46,16 @@ Results from 0.2.0 for the functions listed under "Fixed" should not be reused.
 - Volatility surfaces: SVI interpolation ignored the strike; the default "cubic_spline"
   surface was a smoothed RBF that did not pass through the quotes; `check_arbitrage` tested the
   curvature of volatility instead of call prices.
+- `VolatilitySurface.load_market_data` raised `TypeError` on the rows that
+  `implied_vol_from_chain` and the market data client return, and loaded NaN volatilities;
+  two quotes at the same strike and expiry (a call and a put) made the RBF surface singular;
+  SVI expiries whose optimiser stopped early were dropped without a warning; `get_smile`
+  pooled strikes from neighbouring expiries.
+- `implied_vol_from_chain` rejected a caller's `on_fail` and ignored `price_field` for dict
+  and DataFrame rows.
+- Heston calibration treated `option_type="Call"` as a put.
+- `black_scholes_price` accepted a negative volatility.
+- Time to expiry was one hour off across a daylight-saving change.
 - Market data: missing implied volatilities were filled with 0.25; `is_market_open` needed
   `pytz`, which was not a dependency; the 10-year yield was used as the short rate; time to
   expiry used 365 and 365.25 days in different places.
@@ -85,7 +95,7 @@ These can change results or break existing code:
 - `PortfolioRiskAnalyzer.set_correlation`, `dollar_delta_by_underlying`,
   `calculate_greeks_by_underlying`, `var_contributions` and `simulate_pnl`.
 - Input validation with errors that name the parameter.
-- Tests: 91 before, 2105 now, including Hull, Haug and Lewis reference values, QuantLib and
+- Tests: 91 before, 2,127 now, including Hull, Haug and Lewis reference values, QuantLib and
   py_vollib cross-checks, every Greek against finite differences, and runs of every example,
   notebook and documentation snippet.
 - `benchmarks/run_benchmarks.py` and `benchmarks/validation_report.py` with their results, a

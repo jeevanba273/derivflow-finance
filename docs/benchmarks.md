@@ -18,8 +18,8 @@ Not every comparison is like-for-like, and the notes under each table say how:
 - Heston: derivflow integrates with SciPy's adaptive quadrature (QUADPACK), QuantLib with
   adaptive Gauss-Lobatto at a relative tolerance of 1e-12.
 
-Where derivflow is slower, the tables show it: QuantLib's tree takes about half the time at
-2000 steps and its Heston engine a little over half the time per price.
+Where derivflow is slower, the tables show it: QuantLib's tree takes less than half the time
+at 2000 steps and its Heston engine a little over half the time per price.
 
 Reproduce with:
 
@@ -29,7 +29,8 @@ python benchmarks/run_benchmarks.py
 ```
 
 The numbers depend on the machine, the Python build and the library versions recorded in the
-first table.
+first table, and on what else the machine is doing: throughput drops when other work runs at the
+same time, so compare runs made on an idle machine.
 
 ## Results
 

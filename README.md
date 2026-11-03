@@ -132,11 +132,11 @@ single-threaded, median of 7 runs after a warm-up. Full tables, spreads and meth
 
 | operation | derivflow | baseline |
 |---|---|---|
-| European price, 1,000,000 options vectorised | 9.3 million/s | NumPy/SciPy formula: 8.2 million/s |
-| European price, scalar Python loop | 722,000/s | py_vollib 407,000/s; QuantLib via Python 253,000/s |
-| Implied volatility, scalar | 12.9 us per quote | py_vollib 18.5 us; QuantLib via Python 13.1 us |
-| Implied volatility, vectorised (99,825 quotes) | 4.0 us per quote | - |
-| American put, 2000-step tree | 28.9 ms | QuantLib CRR tree 14.7 ms |
+| European price, 1,000,000 options vectorised | 9.2 million/s | NumPy/SciPy formula: 7.8 million/s |
+| European price, scalar Python loop | 762,000/s | py_vollib 417,000/s; QuantLib via Python 292,000/s |
+| Implied volatility, scalar | 12.4 us per quote | py_vollib 19.8 us; QuantLib via Python 12.9 us |
+| Implied volatility, vectorised (99,825 quotes) | 4.2 us per quote | - |
+| American put, 2000-step tree | 33.3 ms | QuantLib CRR tree 14.4 ms |
 | Heston analytic call | 0.7 ms per price | QuantLib 0.4 ms |
 
 QuantLib's rows are driven from Python one option at a time and include binding overhead, and

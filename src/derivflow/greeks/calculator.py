@@ -226,11 +226,14 @@ class GreeksCalculator:
         # Gamma: d²P/dS²
         gamma = (price_up - 2 * base_price + price_down) / (base_params["S"] * bumps["delta"]) ** 2
 
-        # Theta: dP/dT
+        # Theta: forward difference in calendar time, scaled to per calendar day
+        # (the same unit as the analytical theta). Divide by the step actually
+        # taken, which is shorter than the bump when T is within a bump of expiry.
         params_theta = base_params.copy()
-        params_theta["T"] = max(0.001, base_params["T"] - bumps["theta"])  # Ensure positive time
+        params_theta["T"] = max(0.5 * base_params["T"], base_params["T"] - bumps["theta"])
+        step = base_params["T"] - params_theta["T"]
         price_theta = pricing_func(**params_theta)
-        theta = (price_theta - base_price) / bumps["theta"]
+        theta = (price_theta - base_price) / step / 365.0
 
         # Vega: dP/dσ
         params_vega_up = base_params.copy()

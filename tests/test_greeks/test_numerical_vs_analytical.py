@@ -1,9 +1,8 @@
 """Numerical (finite-difference) Greeks vs analytical.
 
 Both ``GreeksCalculator`` methods report in the same units (delta/gamma raw,
-vega/rho per 1% move, theta per day), so delta/gamma/vega/rho compare directly.
-Theta uses a per-year forward difference numerically vs a per-day analytical
-value, so only the sign is asserted (a documented convention difference).
+vega/rho per 1 percentage point, theta per calendar day), so every Greek
+compares directly.
 """
 
 import pytest
@@ -30,10 +29,16 @@ def test_put_greeks_match(atm_params, tol):
     assert gn.vega == pytest.approx(ga.vega, rel=1e-2)
 
 
-def test_theta_sign_agrees(atm_params):
-    ga = analytical.calculate_greeks(option_type="call", **atm_params)
-    gn = numerical.calculate_greeks(option_type="call", **atm_params)
-    assert (ga.theta < 0) == (gn.theta < 0)
+def test_theta_units_agree(atm_params):
+    """Both methods report theta per calendar day.
+
+    The numerical value is the one-day decay V(T - 1/365) - V(T), which differs
+    from the instantaneous analytical rate only at second order in 1/365.
+    """
+    for option_type in ("call", "put"):
+        ga = analytical.calculate_greeks(option_type=option_type, **atm_params)
+        gn = numerical.calculate_greeks(option_type=option_type, **atm_params)
+        assert gn.theta == pytest.approx(ga.theta, rel=1e-2)
 
 
 def test_positional_pricing_func_backward_compatible():

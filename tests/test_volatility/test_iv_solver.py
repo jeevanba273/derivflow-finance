@@ -26,9 +26,11 @@ def test_round_trip_with_dividend():
     assert iv == pytest.approx(0.3, abs=1e-6)
 
 
-def test_price_above_upper_bound_returns_nan():
+def test_price_above_upper_bound_raises_by_default():
     # A call cannot be worth more than the (dividend-adjusted) spot.
-    assert np.isnan(implied_volatility(1000, 100, 100, 1.0, 0.05, "call"))
+    with pytest.raises(ValueError, match="upper bound"):
+        implied_volatility(1000, 100, 100, 1.0, 0.05, "call")
+    assert np.isnan(implied_volatility(1000, 100, 100, 1.0, 0.05, "call", on_fail="nan"))
 
 
 def test_out_of_bounds_raises_when_requested():
@@ -36,8 +38,10 @@ def test_out_of_bounds_raises_when_requested():
         implied_volatility(-1.0, 100, 100, 1.0, 0.05, "call", on_fail="raise")
 
 
-def test_expiry_zero_returns_nan():
-    assert np.isnan(implied_volatility(5.0, 100, 100, 0.0, 0.05, "call"))
+def test_expiry_zero_raises_by_default():
+    with pytest.raises(ValueError, match="T must be positive"):
+        implied_volatility(5.0, 100, 100, 0.0, 0.05, "call")
+    assert np.isnan(implied_volatility(5.0, 100, 100, 0.0, 0.05, "call", on_fail="nan"))
 
 
 def test_vectorized_solver():

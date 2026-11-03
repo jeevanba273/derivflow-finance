@@ -118,9 +118,14 @@ class GreeksCalculator:
             Complete Greeks profile
         """
         if T <= 0:
-            # Handle expiry case
+            # At expiry the value is the payoff: delta is 1 for an in-the-money
+            # call, -1 for an in-the-money put and 0 otherwise.
+            if option_type.lower() == "call":
+                expiry_delta = 1.0 if S > K else 0.0
+            else:
+                expiry_delta = -1.0 if S < K else 0.0
             return GreeksResult(
-                delta=1.0 if (option_type.lower() == "call" and S > K) else 0.0,
+                delta=expiry_delta,
                 gamma=0.0,
                 theta=0.0,
                 vega=0.0,

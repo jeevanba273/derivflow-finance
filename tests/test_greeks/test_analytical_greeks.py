@@ -48,3 +48,13 @@ def test_dividend_yield_reduces_call_delta(atm_params):
     g0 = calc.calculate_greeks(option_type="call", q=0.0, **atm_params)
     gq = calc.calculate_greeks(option_type="call", q=0.05, **atm_params)
     assert gq.delta < g0.delta  # discounted by exp(-qT)
+
+
+@pytest.mark.parametrize(
+    ("S", "option_type", "expected_delta"),
+    [(110, "call", 1.0), (90, "call", 0.0), (90, "put", -1.0), (110, "put", 0.0)],
+)
+def test_expired_option_delta(S, option_type, expected_delta):
+    g = calc.calculate_greeks(S, 100, 0.0, 0.05, 0.2, option_type)
+    assert g.delta == expected_delta
+    assert g.gamma == g.vega == g.theta == g.rho == 0.0

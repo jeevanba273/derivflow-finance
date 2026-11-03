@@ -1,11 +1,11 @@
-"""Visualization dashboard: figures are produced for the headline plots.
+"""Plotly dashboard: each plot method returns a figure (needs the [plot] extra)."""
 
-(Replaces the original print-style smoke script with real assertions.)
-"""
+import pytest
 
-import plotly.graph_objects as go
+go = pytest.importorskip("plotly.graph_objects")
+pytest.importorskip("pandas")
 
-from derivflow.visualization.dashboard import (
+from derivflow.visualization.dashboard import (  # noqa: E402
     DerivativesDashboard,
     quick_greeks_plot,
     quick_payoff_plot,
@@ -15,10 +15,7 @@ from derivflow.visualization.dashboard import (
 def test_dashboard_instantiates():
     dash = DerivativesDashboard()
     assert dash.theme == "plotly_dark"
-    # The constructor previously failed at import (MarketDataProvider).
-    from derivflow.utils.market_data import AdvancedMarketData
-
-    assert isinstance(dash.market_data, AdvancedMarketData)
+    assert dash._market_data is None  # market data client is created only when used
 
 
 def test_option_payoff_figure():

@@ -26,7 +26,15 @@ def test_core_import_does_not_load_optional_dependencies():
 
 
 def test_optional_names_resolve_lazily():
+    import importlib.util
+
+    import pytest
+
     import derivflow
 
     assert "AdvancedMarketData" in dir(derivflow)
-    assert derivflow.AdvancedMarketData.__name__ == "AdvancedMarketData"
+    if importlib.util.find_spec("pandas") is None:
+        with pytest.raises(ImportError, match=r"derivflow-finance\[data\]"):
+            derivflow.AdvancedMarketData
+    else:
+        assert derivflow.AdvancedMarketData.__name__ == "AdvancedMarketData"

@@ -90,7 +90,14 @@ def __getattr__(name: str) -> Any:
     module_name = _LAZY_EXPORTS.get(name)
     if module_name is None:
         raise AttributeError(f"module 'derivflow' has no attribute {name!r}")
-    module = importlib.import_module(module_name)
+    extra = "data" if "market_data" in module_name else "plot"
+    try:
+        module = importlib.import_module(module_name)
+    except ImportError as exc:
+        raise ImportError(
+            f"derivflow.{name} needs optional dependencies: "
+            f"pip install derivflow-finance[{extra}] ({exc})"
+        ) from exc
     return getattr(module, name)
 
 

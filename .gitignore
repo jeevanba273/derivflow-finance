@@ -48,3 +48,6 @@ Thumbs.db
 
 # Misc placeholder
 .dummy.txt
+
+# Local assistant notes (kept out of version control)
+CLAUDE.md

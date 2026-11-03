@@ -27,6 +27,7 @@ from derivflow import (
     BinomialTree,
     GreeksCalculator,
     HestonModel,
+    MonteCarloEngine,
     black_scholes_price,
     implied_volatility,
 )
@@ -405,6 +406,27 @@ def vollib_row() -> list[list[str]]:
     ]
 
 
+def mc_coverage(seeds: int = 400, paths: int = 20_000) -> list[list[str]]:
+    """How often the 95% confidence interval contains the closed-form price."""
+    truth = black_scholes_price(100.0, 100.0, 1.0, 0.05, 0.2)
+    rows = []
+    for label, kw in (
+        ("plain", {}),
+        ("antithetic", {"antithetic": True}),
+        ("control variate", {"control_variate": True}),
+    ):
+        hits, z = 0, []
+        for seed in range(seeds):
+            res = MonteCarloEngine(paths, random_seed=seed).price(
+                100.0, 100.0, 1.0, 0.05, 0.2, **kw
+            )
+            lo, hi = res["confidence_interval"]
+            hits += lo < truth < hi
+            z.append((res["price"] - truth) / res["std_error"])
+        rows.append([label, f"{hits / seeds:.1%}", f"{np.mean(z):+.3f}", f"{np.std(z):.3f}"])
+    return rows
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -430,6 +452,14 @@ def main() -> None:
             "Maximum absolute difference; maturities are whole days on Actual/365 Fixed.",
             "",
             table(["quantity", "QuantLib engine", "cases", "max abs difference"], quantlib_rows()),
+            "",
+            "## Monte Carlo confidence intervals",
+            "",
+            "ATM European call (S=K=100, T=1, r=5%, sigma=20%), 20,000 draws, seeds 0 to 399. "
+            "z = (estimate - closed form) / standard error should have mean 0 "
+            "and standard deviation 1.",
+            "",
+            table(["method", "95% CI coverage", "mean z", "std of z"], mc_coverage()),
             "",
             "## py_vollib",
             "",

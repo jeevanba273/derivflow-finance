@@ -39,6 +39,16 @@ Maximum absolute difference; maturities are whole days on Actual/365 Fixed.
 | Arithmetic Asian, 12 fixings, Monte Carlo (200k paths each) | MCDiscreteArithmeticAPEngine | 1 | 2.5e-04 (0.2 combined s.e.) |
 | Heston, analytic (3 parameter sets incl. one violating Feller) | AnalyticHestonEngine | 27 | 2.1e-10 |
 
+## Monte Carlo confidence intervals
+
+ATM European call (S=K=100, T=1, r=5%, sigma=20%), 20,000 draws, seeds 0 to 399. z = (estimate - closed form) / standard error should have mean 0 and standard deviation 1.
+
+| method | 95% CI coverage | mean z | std of z |
+|---|---|---|---|
+| plain | 95.0% | -0.088 | 0.976 |
+| antithetic | 94.0% | -0.036 | 1.006 |
+| control variate | 94.0% | -0.032 | 1.022 |
+
 ## py_vollib
 
 | quantity | cases | max abs difference |

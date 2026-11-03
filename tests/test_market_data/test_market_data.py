@@ -32,11 +32,11 @@ def _stub_yfinance(closes=None, irx=4.2):
     call_prices = [black_scholes_price(SPOT, k, T, RATE, SIGMA, "call") for k in strikes]
     calls = pd.DataFrame(
         {
-            "strike": strikes + [60.0],
+            "strike": [*strikes, 60.0],
             # last row: priced below intrinsic value, so no volatility solves it
-            "bid": [p - 0.01 for p in call_prices] + [30.0],
-            "ask": [p + 0.01 for p in call_prices] + [30.0],
-            "lastPrice": call_prices + [30.0],
+            "bid": [*(p - 0.01 for p in call_prices), 30.0],
+            "ask": [*(p + 0.01 for p in call_prices), 30.0],
+            "lastPrice": [*call_prices, 30.0],
             "volume": [10] * 6,
             "openInterest": [100] * 6,
             "impliedVolatility": [np.nan] * 6,  # vendor IV missing

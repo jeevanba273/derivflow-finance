@@ -1,9 +1,13 @@
 """
-DERIVFLOW-FINANCE: Volatility Surface Engine
-==========================================
+Implied volatility surfaces from (strike, expiry, volatility) quotes.
 
-Advanced volatility surface construction and interpolation.
-Supports multiple methodologies and market data integration.
+Methods: 'rbf' (thin-plate radial basis function on (ln K, T), exact at the
+quotes), 'linear' (piecewise-linear on a Delaunay triangulation of the same
+coordinates) and 'svi' (raw SVI of Gatheral (2004) per expiry, total variance
+linear in T between expiries). Expiries are in years and volatilities are
+annualised. None of the methods enforces absence of arbitrage;
+:meth:`VolatilitySurface.check_arbitrage` tests a smile for static
+arbitrage across strikes.
 """
 
 import warnings
@@ -450,7 +454,7 @@ class VolatilitySurface:
             for j in range(len(strike_grid)):
                 try:
                     vol_grid[i, j] = self.interpolate(K_grid[i, j], T_grid[i, j])
-                except:
+                except ValueError:
                     vol_grid[i, j] = np.nan
 
         # Create 3D plot

@@ -2,7 +2,6 @@
 
 import pytest
 
-
 from derivflow.volatility.surface import create_sample_surface
 
 

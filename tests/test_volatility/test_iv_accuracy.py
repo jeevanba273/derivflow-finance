@@ -44,7 +44,7 @@ def test_round_trip(bs_ref, T, m, sigma, ot):
     # Time value below ~1e-12 of the option price cannot be resolved in double
     # precision: the volatility is not identifiable and a clear error is raised.
     if _time_value(bs_ref, K, T, sigma) <= 1e-12 * max(price, 1e-300):
-        with pytest.raises(ValueError, match="identif|intrinsic|time value"):
+        with pytest.raises(ValueError, match=r"identif|intrinsic|time value"):
             implied_volatility(price, S, K, T, R, ot, Q)
         return
     iv = implied_volatility(price, S, K, T, R, ot, Q)

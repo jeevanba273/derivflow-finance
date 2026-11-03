@@ -19,7 +19,10 @@ def test_matches_scalar_pricer_elementwise():
     for option_type in ("call", "put"):
         vec = black_scholes_price(S, K, T, r, sigma, option_type, q)
         ref = np.array(
-            [bs.price(*args, option_type, qi) for *args, qi in zip(S, K, T, r, sigma, q)]
+            [
+                bs.price(*args, option_type, qi)
+                for *args, qi in zip(S, K, T, r, sigma, q, strict=True)
+            ]
         )
         np.testing.assert_allclose(vec, ref, rtol=1e-12, atol=1e-12)
 

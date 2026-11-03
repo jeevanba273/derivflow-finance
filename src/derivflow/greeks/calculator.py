@@ -279,7 +279,7 @@ class GreeksCalculator:
         price_down = pricing_func(**params_down)
         delta = (price_up - price_down) / (2 * base_params["S"] * bumps["delta"])
 
-        # Gamma: d²P/dS²
+        # Gamma: d2P/dS2
         gamma = (price_up - 2 * base_price + price_down) / (base_params["S"] * bumps["delta"]) ** 2
 
         # Theta: forward difference in calendar time, scaled to per calendar day

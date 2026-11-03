@@ -6,7 +6,7 @@ from derivflow import AsianOptions, BarrierOptions, create_sample_surface
 
 
 def _global_state():
-    return np.random.get_state()[1].copy()
+    return np.random.get_state()[1].copy()  # noqa: NPY002 - checking the global state
 
 
 def test_barrier_monte_carlo():

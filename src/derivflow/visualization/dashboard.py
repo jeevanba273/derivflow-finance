@@ -1,9 +1,7 @@
 """
-DERIVFLOW-FINANCE: Advanced Visualization Dashboard
-==================================================
-
-Professional-grade interactive dashboards for derivatives analytics.
-Supports real-time pricing, Greeks visualization, and volatility surfaces.
+Plotly figures for option payoffs, price sensitivities, Greeks, P&L and
+volatility surfaces (requires the ``[plot]`` extra). Prices and Greeks come
+from the Black-Scholes-Merton functions of this package.
 """
 
 import warnings
@@ -20,15 +18,8 @@ from ..volatility.surface import create_sample_surface
 
 
 class DerivativesDashboard:
-    """
-    Professional derivatives analytics dashboard
-
-    Creates interactive visualizations for:
-    - Option pricing across parameters
-    - Greeks analysis and sensitivity
-    - Volatility surface modeling
-    - P&L and risk analytics
-    """
+    """Builds Plotly figures; each ``plot_*`` method returns a
+    ``plotly.graph_objects.Figure``."""
 
     def __init__(self, theme: str = "plotly_dark"):
         """
@@ -44,7 +35,6 @@ class DerivativesDashboard:
         self.greeks_calc = GreeksCalculator()
         self._market_data = None
 
-        # Color scheme for professional look
         self.colors = {
             "call": "#00ff88",  # Bright green
             "put": "#ff4444",  # Bright red
@@ -133,7 +123,7 @@ class DerivativesDashboard:
                 name="Net P&L",
                 line=dict(color=color, width=3),
                 fill="tonexty",
-                fillcolor=f"rgba{tuple(list(px.colors.hex_to_rgb(color)) + [0.3])}",
+                fillcolor=f"rgba{tuple([*list(px.colors.hex_to_rgb(color)), 0.3])}",
                 hovertemplate="Spot: $%{x:.2f}<br>Net P&L: $%{y:.2f}<extra></extra>",
             )
         )
@@ -284,7 +274,10 @@ class DerivativesDashboard:
                 mode="markers",
                 name="Current",
                 marker=dict(color="yellow", size=10, symbol="star"),
-                hovertemplate=f"Current {param_label}: %{{x:.4f}}<br>Current Price: $%{{y:.2f}}<extra></extra>",
+                hovertemplate=(
+                    f"Current {param_label}: %{{x:.4f}}<br>"
+                    "Current Price: $%{y:.2f}<extra></extra>"
+                ),
             )
         )
 
@@ -303,7 +296,7 @@ class DerivativesDashboard:
         self, S: float, K: float, T: float, r: float, sigma: float, option_type: str = "call"
     ) -> go.Figure:
         """
-        Create comprehensive Greeks dashboard
+        Delta, gamma, theta, vega and rho across spot, plus the current values
 
         Parameters:
         -----------
@@ -464,7 +457,9 @@ class DerivativesDashboard:
                     surface_data = market_surface
                 except Exception:
                     # Fallback to sample data
-                    warnings.warn("Using sample volatility surface - live data unavailable")
+                    warnings.warn(
+                        "Using sample volatility surface - live data unavailable", stacklevel=2
+                    )
                     vol_surface = create_sample_surface()
                     vol_surface.build_surface()
                     surface_data = {
@@ -518,7 +513,9 @@ class DerivativesDashboard:
                     y=pivot_table.index,
                     colorscale="Viridis",
                     colorbar=dict(title="Implied Volatility"),
-                    hovertemplate="Moneyness: %{x:.2f}<br>Expiry: %{y:.2f}y<br>IV: %{z:.1%}<extra></extra>",
+                    hovertemplate=(
+                        "Moneyness: %{x:.2f}<br>Expiry: %{y:.2f}y<br>IV: %{z:.1%}<extra></extra>"
+                    ),
                 )
             ]
         )
@@ -552,7 +549,7 @@ class DerivativesDashboard:
         sigma: float,
         option_type: str = "call",
         position_size: int = 1,
-        premium_paid: float = None,
+        premium_paid: float | None = None,
     ) -> go.Figure:
         """
         Create P&L analysis for option position
@@ -622,7 +619,9 @@ class DerivativesDashboard:
                     mode="lines",
                     name=scenario_name,
                     line=dict(color=colors[i], width=2),
-                    hovertemplate=f"{scenario_name}<br>Spot: $%{{x:.2f}}<br>P&L: $%{{y:.2f}}<extra></extra>",
+                    hovertemplate=(
+                        f"{scenario_name}<br>Spot: $%{{x:.2f}}<br>P&L: $%{{y:.2f}}<extra></extra>"
+                    ),
                 )
             )
 
@@ -642,7 +641,10 @@ class DerivativesDashboard:
         position_desc = (
             f"Long {abs(position_size)}" if position_size > 0 else f"Short {abs(position_size)}"
         )
-        title_text = f"P&L Analysis - {position_desc} {option_type.title()} ${K:.0f} (Premium: ${premium_paid:.2f})"
+        title_text = (
+            f"P&L Analysis - {position_desc} {option_type.title()} ${K:.0f} "
+            f"(Premium: ${premium_paid:.2f})"
+        )
 
         fig.update_layout(
             title=title_text,
@@ -657,7 +659,7 @@ class DerivativesDashboard:
 
     def create_comprehensive_dashboard(self, symbol: str) -> dict[str, go.Figure]:
         """
-        Create comprehensive dashboard for a symbol
+        All figures for one symbol, using its live spot and the ^IRX rate (needs ``[data]``)
 
         Parameters:
         -----------
@@ -700,7 +702,7 @@ class DerivativesDashboard:
             return dashboard
 
         except Exception as e:
-            raise ValueError(f"Error creating dashboard for {symbol}: {e!s}")
+            raise ValueError(f"Error creating dashboard for {symbol}: {e!s}") from e
 
 
 # Convenience functions
@@ -719,59 +721,3 @@ def quick_greeks_plot(
 
 
 # Example usage and testing
-if __name__ == "__main__":
-    print("DERIVFLOW-FINANCE Visualization Dashboard")
-    print("=" * 60)
-
-    # Initialize dashboard
-    dashboard = DerivativesDashboard()
-
-    # Test parameters
-    S, K, T, r, sigma = 100, 105, 0.25, 0.05, 0.25
-    call_price = price_european_option(S, K, T, r, sigma, "call")
-
-    print("Creating visualizations for CALL option:")
-    print(f"   Spot: ${S}, Strike: ${K}, Premium: ${call_price:.2f}")
-    print("-" * 50)
-
-    try:
-        # Test 1: Payoff diagram
-        print("1. Payoff diagram: Ready")
-        payoff_fig = dashboard.plot_option_payoff(K, call_price, "call")
-
-        # Test 2: Price sensitivity
-        print("2. Price sensitivity: Ready")
-        sensitivity_fig = dashboard.plot_price_sensitivity(S, K, T, r, sigma, "call", "spot")
-
-        # Test 3: Greeks dashboard
-        print("3. Greeks dashboard: Ready")
-        greeks_fig = dashboard.plot_greeks_dashboard(S, K, T, r, sigma, "call")
-
-        # Test 4: Volatility surface
-        print("4. Volatility surface: Ready")
-        vol_surface_fig = dashboard.plot_volatility_surface()
-
-        # Test 5: P&L analysis
-        print("5. P&L analysis: Ready")
-        pnl_fig = dashboard.plot_pnl_analysis(S, K, T, r, sigma, "call", 1, call_price)
-
-        print("\nDASHBOARD STATUS:")
-        print("-" * 30)
-        print("Payoff diagrams: Working")
-        print("Sensitivity analysis: Working")
-        print("Greeks visualization: Working")
-        print("Volatility surfaces: Working")
-        print("P&L analysis: Working")
-        print("Interactive plots: Ready")
-
-        print("\nVISUALIZATION MODULE COMPLETE!")
-        print("Professional derivatives analytics dashboard ready!")
-        print("Use .show() on any figure to display in browser")
-
-        # Example: Show one plot
-        print("\nExample: Displaying payoff diagram...")
-        # payoff_fig.show()  # Uncomment to display
-
-    except Exception as e:
-        print(f"Error: {e!s}")
-        print("Check dependencies: plotly, pandas, numpy")

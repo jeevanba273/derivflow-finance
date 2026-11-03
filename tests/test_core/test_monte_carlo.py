@@ -52,11 +52,11 @@ def test_standard_error_shrinks_like_one_over_sqrt_n():
 
 
 def test_seed_is_reproducible_and_does_not_touch_global_state():
-    before = np.random.get_state()[1].copy()
+    before = np.random.get_state()[1].copy()  # noqa: NPY002 - checking the global state
     a = MonteCarloEngine(5_000, random_seed=11).price(100, 100, 1.0, 0.05, 0.2)
     b = MonteCarloEngine(5_000, random_seed=11).price(100, 100, 1.0, 0.05, 0.2)
     assert a["price"] == b["price"]
-    assert np.array_equal(np.random.get_state()[1], before)
+    assert np.array_equal(np.random.get_state()[1], before)  # noqa: NPY002
 
 
 def test_path_shape_and_initial_value():

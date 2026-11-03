@@ -1,5 +1,7 @@
 """Black-Scholes analytical pricing: known-value benchmarks and invariants."""
 
+import itertools
+
 import numpy as np
 import pytest
 
@@ -47,7 +49,7 @@ def test_intrinsic_at_expiry():
 def test_monotonic_in_volatility(atm_params):
     p = dict(atm_params)
     prices = [bs.price(p["S"], p["K"], p["T"], p["r"], s, "call") for s in (0.1, 0.2, 0.4, 0.8)]
-    assert all(b > a for a, b in zip(prices, prices[1:]))
+    assert all(b > a for a, b in itertools.pairwise(prices))
 
 
 def test_deep_itm_otm(bs_ref):

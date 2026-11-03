@@ -169,12 +169,10 @@ class GreeksCalculator:
         # Third-order Greeks
         speed = -gamma * (d1 / (sigma * np.sqrt(T)) + 1) / S  # Speed (gamma sensitivity to spot)
         zomma = gamma * (d1 * d2 - 1) / sigma  # Zomma (gamma sensitivity to vol)
-        color = (
-            -disc_q
-            * phi_d1
-            / (2 * S * T * sigma * np.sqrt(T))
-            * (2 * (r - q) * T + 1 + d1 * (2 * (r - q) * T - d1) / (sigma * np.sqrt(T)))
-        )  # Color (gamma sensitivity to time)
+        # Color = dGamma/dt in calendar time (= -dGamma/dT), the same sign
+        # convention as theta. Differentiating the gamma closed form in T gives
+        # dGamma/dt = Gamma * (q + (r - q) d1 / (sigma sqrt(T)) + (1 - d1 d2) / (2 T)).
+        color = gamma * (q + (r - q) * d1 / (sigma * np.sqrt(T)) + (1 - d1 * d2) / (2 * T))
 
         return GreeksResult(
             delta=delta,

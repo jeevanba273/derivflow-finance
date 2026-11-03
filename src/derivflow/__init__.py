@@ -33,6 +33,7 @@ from .core.pricing_engine import (
     BlackScholesAnalytical,
     MonteCarloEngine,
     PricingEngine,
+    black_scholes_price,
     price_european_option,
 )
 from .exotic.asian_options import (
@@ -126,6 +127,7 @@ __all__ = [
     "VolatilitySurface",
     "VolatilitySurfaceResult",
     "__version__",
+    "black_scholes_price",
     "compare_asian_types",
     "create_sample_portfolio",
     "create_sample_surface",

@@ -12,6 +12,7 @@ from .pricing_engine import (
     MonteCarloEngine,
     PricingEngine,
     PricingMethod,
+    black_scholes_price,
     price_european_option,
 )
 
@@ -21,5 +22,6 @@ __all__ = [
     "MonteCarloEngine",
     "PricingEngine",
     "PricingMethod",
+    "black_scholes_price",
     "price_european_option",
 ]

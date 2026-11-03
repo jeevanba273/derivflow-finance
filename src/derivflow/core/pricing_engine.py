@@ -10,7 +10,53 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 
 import numpy as np
+from numpy.typing import ArrayLike
+from scipy.special import ndtr
 import scipy.stats as stats
+
+
+def black_scholes_price(
+    S: ArrayLike,
+    K: ArrayLike,
+    T: ArrayLike,
+    r: ArrayLike,
+    sigma: ArrayLike,
+    option_type: str = "call",
+    q: ArrayLike = 0.0,
+) -> np.ndarray | float:
+    """
+    Black-Scholes-Merton price of European options, vectorised over NumPy arrays.
+
+    C = S e^{-qT} N(d1) - K e^{-rT} N(d2),  P = K e^{-rT} N(-d2) - S e^{-qT} N(-d1),
+    d1 = [ln(S/K) + (r - q + sigma^2/2) T] / (sigma sqrt(T)),  d2 = d1 - sigma sqrt(T).
+
+    All inputs broadcast against each other. T is in years, r and q are
+    continuously compounded annual rates, sigma is annualised. Where T <= 0 the
+    intrinsic value is returned; where sigma == 0 the discounted forward
+    intrinsic value. Returns a float for scalar input, otherwise an array.
+    Reference: Hull, Options, Futures, and Other Derivatives, ch. 15 and 17.
+    """
+    S_, K_, T_, r_, sig_, q_ = np.broadcast_arrays(
+        *(np.asarray(x, dtype=float) for x in (S, K, T, r, sigma, q))
+    )
+    ot = option_type.lower()
+    if ot not in ("call", "put"):
+        raise ValueError("option_type must be 'call' or 'put'")
+    sign = 1.0 if ot == "call" else -1.0
+    live = (T_ > 0) & (sig_ > 0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        sqrt_t = np.sqrt(np.where(T_ > 0, T_, 1.0))
+        vol_t = np.where(live, sig_ * sqrt_t, 1.0)
+        d1 = (np.log(S_ / K_) + (r_ - q_ + 0.5 * sig_**2) * T_) / vol_t
+        d2 = d1 - vol_t
+        disc_s = S_ * np.exp(-q_ * np.maximum(T_, 0.0))
+        disc_k = K_ * np.exp(-r_ * np.maximum(T_, 0.0))
+        price = sign * (disc_s * ndtr(sign * d1) - disc_k * ndtr(sign * d2))
+    intrinsic = np.where(
+        T_ > 0, np.maximum(sign * (disc_s - disc_k), 0.0), np.maximum(sign * (S_ - K_), 0.0)
+    )
+    out = np.where(live, np.maximum(price, 0.0), intrinsic)
+    return float(out) if out.ndim == 0 else out
 
 
 class PricingMethod(ABC):

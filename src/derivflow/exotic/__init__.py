@@ -1,7 +1,5 @@
 """Barrier and Asian options."""
 
-# Barrier Options
-# Asian Options
 from .asian_options import (
     AsianOptionResult,
     AsianOptions,
@@ -12,15 +10,12 @@ from .asian_options import (
 )
 from .barrier_options import BarrierOptionResult, BarrierOptions, BarrierType
 
-# Convenience exports
 __all__ = [
     "AsianOptionResult",
-    # Asian Options
     "AsianOptions",
     "AsianType",
     "AverageType",
     "BarrierOptionResult",
-    # Barrier Options
     "BarrierOptions",
     "BarrierType",
     "compare_asian_types",

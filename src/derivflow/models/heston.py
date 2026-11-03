@@ -1,27 +1,42 @@
 """
-DERIVFLOW-FINANCE: Heston Stochastic Volatility Model
-===================================================
+Heston (1993) stochastic volatility model for European options.
 
-Complete implementation of the Heston model with:
-- Analytical pricing (when available)
-- Monte Carlo simulation
-- Model calibration to market data
-- Greeks calculation
+Risk-neutral dynamics, with v the instantaneous variance:
+
+    dS = (r - q) S dt + sqrt(v) S dW1
+    dv = kappa (theta - v) dt + sigma sqrt(v) dW2,   d<W1, W2> = rho dt
+
+Parameters: v0 initial variance, kappa mean-reversion speed, theta long-run
+variance, sigma volatility of variance, rho correlation. Note that v0 and
+theta are variances (v0 = 0.04 is a 20% volatility). The variance can reach
+zero when the Feller condition 2 kappa theta > sigma^2 fails; the model is
+still well defined and the pricers handle it.
+
+- :meth:`HestonModel.analytic_price`: Lewis (2001) single integral with the
+  Albrecher et al. (2007) form of the characteristic function. Reproduces
+  Alan Lewis's reference prices to 1e-8 and QuantLib's AnalyticHestonEngine
+  in the validation tests.
+- :meth:`HestonModel.monte_carlo_price`: Andersen (2008) QE scheme or
+  full-truncation Euler.
+- :meth:`HestonModel.calibrate_to_market`: least-squares fit to prices.
+
+The model has no jumps; it does not fit very short-dated smiles well.
 """
+
+from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-import scipy.stats as stats
 from scipy import integrate
 from scipy.special import ndtri
 
 from .._validation import check_live_inputs, check_market_inputs, check_option_type
 
 
-def _heston_cf(u, T, params):
+def _heston_cf(u: Any, T: float, params: HestonParameters) -> Any:
     """Characteristic function of ln(S_T / F_T) (Albrecher et al. 2007 form)."""
     v0, kappa, theta, sigma, rho = (
         params.v0,
@@ -43,7 +58,7 @@ def _heston_cf(u, T, params):
 
 
 def heston_call_price(
-    S: float, K: float, T: float, r: float, q: float, params: "HestonParameters"
+    S: float, K: float, T: float, r: float, q: float, params: HestonParameters
 ) -> float:
     """European call under Heston via the Lewis (2001) single integral."""
     if T <= 0:
@@ -60,13 +75,14 @@ def heston_call_price(
 
 @dataclass
 class HestonParameters:
-    """Heston model parameters"""
+    """Heston parameters: v0 and theta are variances, sigma is the volatility of
+    variance, rho the spot/variance correlation."""
 
-    v0: float  # Initial volatility
-    kappa: float  # Mean reversion speed
-    theta: float  # Long-term volatility
-    sigma: float  # Volatility of volatility
-    rho: float  # Correlation between asset and volatility
+    v0: float
+    kappa: float
+    theta: float
+    sigma: float
+    rho: float
 
 
 @dataclass
@@ -81,39 +97,31 @@ class HestonResult:
 
 
 class HestonModel:
-    """
-    Heston Stochastic Volatility Model Implementation
+    """Heston model with analytic and Monte Carlo pricing and calibration; see
+    the module docstring for the dynamics and methods."""
 
-    The Heston model assumes the following dynamics:
-    dS = rS dt + √V S dW1
-    dV = κ(θ - V) dt + σ√V dW2
-
-    where dW1 dW2 = ρ dt
-    """
-
-    def __init__(self):
-        """Initialize Heston model"""
-        self.params = None
+    def __init__(self) -> None:
+        self.params: HestonParameters | None = None
         self.calibrated = False
 
     def set_parameters(
         self, v0: float, kappa: float, theta: float, sigma: float, rho: float
     ) -> None:
         """
-        Set Heston model parameters
+        Set the model parameters (warns if the Feller condition fails).
 
         Parameters:
         -----------
         v0 : float
-            Initial volatility
+            Initial variance (>= 0); v0 = 0.04 means 20% volatility.
         kappa : float
-            Mean reversion speed (> 0)
+            Mean-reversion speed of the variance (> 0), per year.
         theta : float
-            Long-term volatility (> 0)
+            Long-run variance (> 0).
         sigma : float
-            Volatility of volatility (> 0)
+            Volatility of variance (> 0).
         rho : float
-            Correlation (-1 < rho < 1)
+            Correlation between spot and variance shocks, -1 < rho < 1.
         """
         # Validate parameters
         if not (np.isfinite(v0) and v0 >= 0):
@@ -403,64 +411,3 @@ class HestonModel:
         if method == "monte_carlo":
             return self.monte_carlo_price(S, K, T, r, option_type, q=q, **mc_kwargs)
         raise ValueError(f"Unknown method: {method}")
-
-
-if __name__ == "__main__":
-    # Example usage and testing
-    print("DERIVFLOW-FINANCE: Heston Stochastic Volatility Model")
-    print("=" * 65)
-
-    # Initialize model
-    heston = HestonModel()
-
-    # Set realistic parameters
-    heston.set_parameters(
-        v0=0.04,  # 4% initial volatility
-        kappa=2.0,  # Mean reversion speed
-        theta=0.04,  # 4% long-term volatility
-        sigma=0.3,  # 30% vol-of-vol
-        rho=-0.7,  # Negative correlation (leverage effect)
-    )
-
-    # Test parameters
-    S, K, T, r = 100, 105, 0.25, 0.05
-
-    print("Heston Model Parameters:")
-    print(f"   v₀ = {heston.params.v0:.3f} (initial vol)")
-    print(f"   κ  = {heston.params.kappa:.1f} (mean reversion)")
-    print(f"   θ  = {heston.params.theta:.3f} (long-term vol)")
-    print(f"   σ  = {heston.params.sigma:.1f} (vol-of-vol)")
-    print(f"   ρ  = {heston.params.rho:.1f} (correlation)")
-    print()
-
-    # Feller condition check
-    feller_condition = 2 * heston.params.kappa * heston.params.theta - heston.params.sigma**2
-    print(f"Feller Condition: 2κθ - σ² = {feller_condition:.3f}")
-    print(f"   Status: {'Satisfied' if feller_condition > 0 else 'Violated'}")
-    print()
-
-    print("Option Pricing Comparison:")
-    print(f"   Spot: ${S} | Strike: ${K} | Time: {T} years")
-    print("-" * 50)
-
-    # Price using Monte Carlo
-    mc_result = heston.price_option(S, K, T, r, "call", method="monte_carlo")
-    print(f"Heston Monte Carlo:  ${mc_result.price:.4f}")
-
-    # Compare to Black-Scholes (inline calculation)
-    vol_bs = np.sqrt(heston.params.v0)
-    d1 = (np.log(S / K) + (r + 0.5 * vol_bs**2) * T) / (vol_bs * np.sqrt(T))
-    d2 = d1 - vol_bs * np.sqrt(T)
-    bs_price = S * stats.norm.cdf(d1) - K * np.exp(-r * T) * stats.norm.cdf(d2)
-
-    print(f"Black-Scholes:       ${bs_price:.4f}")
-    print(f"Difference:          ${mc_result.price - bs_price:.4f}")
-    print(f"Relative Diff:       {(mc_result.price - bs_price) / bs_price:.1%}")
-
-    print("\nHESTON VS BLACK-SCHOLES ANALYSIS:")
-    print("-" * 50)
-    print("Heston captures stochastic volatility effects")
-    print(
-        f"Difference of {(mc_result.price - bs_price) / bs_price:.1%} shows volatility smile impact"
-    )
-    print(f"Negative correlation (ρ={heston.params.rho}) creates leverage effect")

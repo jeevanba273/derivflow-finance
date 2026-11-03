@@ -79,64 +79,73 @@ class AsianOptions:
         sigma: float,
         option_type: str = "call",
         average_type: str = "continuous",
+        num_fixings: int = 252,
     ) -> AsianOptionResult:
         """
-        Price geometric average Asian option using analytical formula
+        Price a geometric-average-price Asian option in closed form.
 
-        For geometric average options, we can derive closed-form solutions
-        similar to Black-Scholes by adjusting the parameters.
+        The geometric average G of a lognormal price is lognormal, so the price
+        is a discounted lognormal expectation, e^{-rT} [F N(d1) - K N(d2)] for a
+        call, with F = exp(m + s^2 / 2), d2 = (m - ln K) / s and d1 = d2 + s.
+
+        - ``average_type='continuous'``: m = ln S + (r - sigma^2/2) T / 2 and
+          s^2 = sigma^2 T / 3 (Kemna and Vorst, 1990).
+        - ``average_type='discrete'``: ``num_fixings`` = n equally spaced fixings
+          at t_i = i T / n, i = 1..n (today's spot is not a fixing), giving
+          m = ln S + (r - sigma^2/2) T (n+1) / (2n) and
+          s^2 = sigma^2 T (n+1)(2n+1) / (6 n^2). With n = 1 this is the
+          Black-Scholes price.
 
         Parameters:
         -----------
-        S : float
-            Current spot price
-        K : float
-            Strike price
+        S, K : float
+            Spot and strike.
         T : float
-            Time to expiry
+            Time to expiry in years.
         r : float
-            Risk-free rate
+            Continuously compounded risk-free rate.
         sigma : float
-            Volatility
+            Annualised volatility.
         option_type : str
             'call' or 'put'
         average_type : str
             'continuous' or 'discrete'
+        num_fixings : int
+            Number of fixings for ``average_type='discrete'``.
 
         Returns:
         --------
         AsianOptionResult
             Pricing result with analytical price
         """
-        # For geometric average Asian options, adjust parameters
         if average_type == "continuous":
-            # Continuous averaging
-            adjusted_r = (r - 0.5 * sigma**2) / 2 + sigma**2 / 6
-            adjusted_sigma = sigma / np.sqrt(3)
+            mean_time = T / 2.0
+            var_g = sigma**2 * T / 3.0
+        elif average_type == "discrete":
+            n = int(num_fixings)
+            if n < 1:
+                raise ValueError("num_fixings must be at least 1")
+            mean_time = T * (n + 1) / (2.0 * n)
+            var_g = sigma**2 * T * (n + 1) * (2 * n + 1) / (6.0 * n**2)
         else:
-            # Discrete averaging (approximation for many observation points)
-            adjusted_r = (r - 0.5 * sigma**2) / 2 + sigma**2 / 6
-            adjusted_sigma = sigma / np.sqrt(3)
+            raise ValueError("average_type must be 'continuous' or 'discrete'")
 
-        # Use adjusted Black-Scholes formula
-        d1 = (np.log(S / K) + (adjusted_r + 0.5 * adjusted_sigma**2) * T) / (
-            adjusted_sigma * np.sqrt(T)
-        )
-        d2 = d1 - adjusted_sigma * np.sqrt(T)
+        m = np.log(S) + (r - 0.5 * sigma**2) * mean_time
+        s_g = np.sqrt(var_g)
+        forward_g = np.exp(m + 0.5 * var_g)
+        d2 = (m - np.log(K)) / s_g
+        d1 = d2 + s_g
+        disc = np.exp(-r * T)
 
         if option_type.lower() == "call":
-            price = S * np.exp((adjusted_r - r) * T) * stats.norm.cdf(d1) - K * np.exp(
-                -r * T
-            ) * stats.norm.cdf(d2)
+            price = disc * (forward_g * stats.norm.cdf(d1) - K * stats.norm.cdf(d2))
         elif option_type.lower() == "put":
-            price = K * np.exp(-r * T) * stats.norm.cdf(-d2) - S * np.exp(
-                (adjusted_r - r) * T
-            ) * stats.norm.cdf(-d1)
+            price = disc * (K * stats.norm.cdf(-d2) - forward_g * stats.norm.cdf(-d1))
         else:
             raise ValueError("option_type must be 'call' or 'put'")
 
         return AsianOptionResult(
-            price=max(price, 0),
+            price=max(float(price), 0.0),
             asian_type="geometric",
             average_type=average_type,
             pricing_method="analytical",
@@ -410,7 +419,7 @@ class AsianOptions:
         # Route to appropriate pricing method
         if asian_type == "geometric" and method == "analytical":
             return self.price_geometric_asian_analytical(
-                S, K, T, r, sigma, option_type, average_type
+                S, K, T, r, sigma, option_type, average_type, num_fixings=num_steps
             )
         elif asian_type == "geometric" and method == "monte_carlo":
             return self.price_geometric_asian_mc(S, K, T, r, sigma, option_type, num_steps)

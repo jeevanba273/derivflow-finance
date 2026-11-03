@@ -43,3 +43,42 @@ def test_arithmetic_asian_cheaper_than_european():
     european = price_european_option(100, 100, 1.0, 0.05, 0.2, "call")
     # Averaging reduces effective volatility -> cheaper than the vanilla.
     assert res.price < european
+
+
+def _discrete_geometric_reference(S, K, T, r, sigma, n, option_type):
+    """Geometric average of n equally spaced fixings t_i = i T / n (i = 1..n).
+
+    ln G is normal with mean ln S + (r - sigma^2/2) T (n+1) / (2n) and variance
+    sigma^2 T (n+1)(2n+1) / (6 n^2); the price is the discounted lognormal
+    expectation (Kemna and Vorst 1990 for the continuous limit).
+    """
+    import numpy as np
+    from scipy.stats import norm
+
+    m = np.log(S) + (r - 0.5 * sigma**2) * T * (n + 1) / (2 * n)
+    s = sigma * np.sqrt(T * (n + 1) * (2 * n + 1) / (6 * n**2))
+    d2 = (m - np.log(K)) / s
+    d1 = d2 + s
+    fwd = np.exp(m + 0.5 * s**2)
+    if option_type == "call":
+        return np.exp(-r * T) * (fwd * norm.cdf(d1) - K * norm.cdf(d2))
+    return np.exp(-r * T) * (K * norm.cdf(-d2) - fwd * norm.cdf(-d1))
+
+
+@pytest.mark.parametrize("n", [1, 4, 12, 52, 252])
+@pytest.mark.parametrize("option_type", ["call", "put"])
+def test_discrete_geometric_closed_form(n, option_type):
+    asian = AsianOptions()
+    got = asian.price_geometric_asian_analytical(
+        100, 95, 1.0, 0.05, 0.25, option_type, average_type="discrete", num_fixings=n
+    ).price
+    ref = _discrete_geometric_reference(100, 95, 1.0, 0.05, 0.25, n, option_type)
+    assert got == pytest.approx(ref, rel=1e-12)
+
+
+def test_single_fixing_geometric_equals_european(bs_ref):
+    asian = AsianOptions()
+    got = asian.price_geometric_asian_analytical(
+        100, 95, 1.0, 0.05, 0.25, "call", average_type="discrete", num_fixings=1
+    ).price
+    assert got == pytest.approx(bs_ref(100, 95, 1.0, 0.05, 0.25, "call"), rel=1e-12)

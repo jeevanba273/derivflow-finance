@@ -364,7 +364,7 @@ def bench_pricing(reps: int, quick: bool) -> dict[str, Any]:
 
 
 def iv_inputs(n: int, seed: int = 2) -> dict[str, np.ndarray]:
-    """Quotes generated from known volatilities, moneyness 0.7-1.3, T 1 week to 2 years.
+    """Quotes priced from known volatilities, moneyness 0.7-1.3, T 1 week to 2 years.
     Quotes whose time value is below 1e-12 of the price are dropped (no identifiable
     volatility; see derivflow.volatility.implied_vol)."""
     rng = np.random.default_rng(seed)
@@ -514,7 +514,7 @@ def bench_implied_vol(reps: int, quick: bool) -> dict[str, Any]:
         notes.append(
             f"QuantLib's solver is given a price accuracy of 1e-12 and bounds [1e-7, 4]; "
             f"{failed} of {n_ql} quotes raised. Its maturities are rounded to whole days, so its "
-            "quotes are regenerated at those maturities."
+            "quotes are repriced at those maturities."
         )
     notes.append(
         "Inputs: S=100, K/S uniform in [0.7, 1.3], T uniform in [1 week, 2 years], sigma uniform "
@@ -703,7 +703,7 @@ def bench_trees_heston(reps: int, quick: bool) -> dict[str, Any]:
         )
         heston_rows.append(
             [
-                "QuantLib `AnalyticHestonEngine` (Gauss-Laguerre, rel. tol 1e-12)",
+                "QuantLib `AnalyticHestonEngine` (adaptive Gauss-Lobatto, rel. tol 1e-12)",
                 time_cell({k: v / len(strikes) for k, v in tq.items()}, 1e3, "ms"),
                 "reference",
                 "-",

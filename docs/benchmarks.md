@@ -11,14 +11,15 @@ implementation of Jaeckel's "Let's Be Rational") and a textbook NumPy/SciPy form
 Not every comparison is like-for-like, and the notes under each table say how:
 
 - QuantLib is driven from Python one option at a time, so its rows include the cost of the
-  Python bindings and of QuantLib's observer updates; QuantLib called from C++ is faster.
+  Python bindings and of QuantLib's observer updates.
 - derivflow computes ten Greeks per call, QuantLib five in the benchmark.
 - QuantLib's "crr" tree uses a different up-probability from derivflow's textbook CRR tree, so
   the two give different prices at the same step count.
-- Heston: derivflow integrates with SciPy's adaptive quadrature, QuantLib with Gauss-Laguerre.
+- Heston: derivflow integrates with SciPy's adaptive quadrature (QUADPACK), QuantLib with
+  adaptive Gauss-Lobatto at a relative tolerance of 1e-12.
 
-Where derivflow is slower, the table shows it: QuantLib's tree is about twice as fast at 2000
-steps and its Heston engine about twice as fast per price.
+Where derivflow is slower, the tables show it: QuantLib's tree takes about half the time at
+2000 steps and its Heston engine a little over half the time per price.
 
 Reproduce with:
 

@@ -47,7 +47,7 @@ Accuracy against QuantLib (random inputs, maturities rounded to whole days; the 
 | py_vollib (Let's Be Rational, scalar loop) | 5,000 | 18.5 [17.6, 18.7] us | 4.9e-07 | 1.8e-10 | 2.6e-06 |
 | QuantLib `impliedVolatility` (scalar loop) | 2,000 | 13.1 [12.7, 13.1] us | 1.1e-02 | 1.9e-11 | 5.4e-02 |
 
-- QuantLib's solver is given a price accuracy of 1e-12 and bounds [1e-7, 4]; 0 of 2000 quotes raised. Its maturities are rounded to whole days, so its quotes are regenerated at those maturities.
+- QuantLib's solver is given a price accuracy of 1e-12 and bounds [1e-7, 4]; 0 of 2000 quotes raised. Its maturities are rounded to whole days, so its quotes are repriced at those maturities.
 - Inputs: S=100, K/S uniform in [0.7, 1.3], T uniform in [1 week, 2 years], sigma uniform in [8%, 80%], r=3%, q=1%, half calls and half puts, prices from known volatilities. Error columns: max |solved - true| over all quotes, over quotes with vega > 1e-6 S, and max relative error.
 
 ## Greeks (options per second) and accuracy against QuantLib
@@ -104,4 +104,4 @@ Heston analytic call prices, 13 strikes 70-130, T=1, r=3%, q=1%, v0=theta=0.04, 
 | implementation | time per price median [min, max] | max abs diff | max rel diff |
 |---|---|---|---|
 | derivflow `analytic_price` (scipy quad) | 0.7 [0.7, 0.8] ms | 1.1e-12 | 4.3e-13 |
-| QuantLib `AnalyticHestonEngine` (Gauss-Laguerre, rel. tol 1e-12) | 0.4 [0.4, 0.4] ms | reference | - |
+| QuantLib `AnalyticHestonEngine` (adaptive Gauss-Lobatto, rel. tol 1e-12) | 0.4 [0.4, 0.4] ms | reference | - |

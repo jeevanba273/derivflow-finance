@@ -49,8 +49,9 @@ dependencies = ["numpy>=1.23", "scipy>=1.9"]
 data = ["yfinance>=0.2.40", "pandas>=1.5", "tzdata"]
 # Plotly dashboards and the matplotlib surface plot.
 plot = ["plotly>=5.0", "matplotlib>=3.5", "pandas>=1.5"]
-# Independent reference libraries used by the cross-check tests and benchmarks.
-validation = ["QuantLib>=1.30", "py_vollib>=1.0.1"]
+# Independent reference libraries used by the cross-check tests and benchmarks
+# (psutil records the background load during benchmark runs).
+validation = ["QuantLib>=1.30", "py_vollib>=1.0.1", "psutil>=5.9"]
 test = ["pytest>=7.0", "pytest-cov>=4.0"]
 docs = ["sphinx>=7.0", "sphinx-rtd-theme>=2.0", "myst-parser>=2.0"]
 dev = [

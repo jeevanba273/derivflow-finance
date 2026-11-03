@@ -9,11 +9,14 @@ Run with:
     python benchmarks/run_benchmarks.py --json benchmarks/results.json
     python benchmarks/run_benchmarks.py --quick            # smaller sizes, for a smoke test
 
-Every timing is repeated (``--reps``, default 7) after one warm-up run; tables
-show the median and the [min, max] range. All libraries get identical inputs
-on the same machine. Baselines that are not installed are reported as
-"not installed". Comparisons that are not like-for-like are flagged in the
-notes under each table.
+Method. Implementations that are compared are timed in the same loop: every
+repetition runs each of them once, in an order that rotates between
+repetitions, after one warm-up call each. Background load therefore hits all
+of them alike, and the "time / derivflow" column is the per-repetition ratio
+of their times, reported as median [min, max]. Tables also give the median
+and [min, max] of the rates or times themselves. The total CPU load of the
+machine during the run and the busiest other processes are recorded (needs
+psutil). Everything runs single-threaded in one Python process.
 """
 
 from __future__ import annotations
@@ -25,7 +28,9 @@ import platform
 import statistics
 import subprocess
 import sys
+import threading
 import time
+import warnings
 from collections.abc import Callable
 from importlib import metadata
 from typing import Any
@@ -52,8 +57,6 @@ except ImportError:  # pragma: no cover
     ql = None
 
 try:
-    import warnings
-
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         from py_vollib.black_scholes_merton import black_scholes_merton as pv_price
@@ -63,11 +66,17 @@ try:
 except ImportError:  # pragma: no cover
     pv_price = pv_iv = None
 
+try:
+    import psutil
+except ImportError:  # pragma: no cover
+    psutil = None
+
 COMMAND = "python benchmarks/run_benchmarks.py"
+DEFAULT_REPS = 15
 
 
 # ---------------------------------------------------------------------------
-# Environment
+# Environment and background load
 # ---------------------------------------------------------------------------
 def _cpu_name() -> str:
     system = platform.system()
@@ -95,31 +104,13 @@ def _cpu_name() -> str:
 
 
 def _ram_gb() -> float | None:
-    try:
-        if platform.system() == "Windows":
-            import ctypes
-
-            class MemoryStatus(ctypes.Structure):
-                _fields_ = [
-                    ("dwLength", ctypes.c_ulong),
-                    ("dwMemoryLoad", ctypes.c_ulong),
-                    ("ullTotalPhys", ctypes.c_ulonglong),
-                    ("ullAvailPhys", ctypes.c_ulonglong),
-                    ("ullTotalPageFile", ctypes.c_ulonglong),
-                    ("ullAvailPageFile", ctypes.c_ulonglong),
-                    ("ullTotalVirtual", ctypes.c_ulonglong),
-                    ("ullAvailVirtual", ctypes.c_ulonglong),
-                    ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
-                ]
-
-            status = MemoryStatus()
-            status.dwLength = ctypes.sizeof(MemoryStatus)
-            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status))
-            return status.ullTotalPhys / 2**30
-        if hasattr(os, "sysconf"):
+    if psutil is not None:
+        return psutil.virtual_memory().total / 2**30
+    if hasattr(os, "sysconf"):
+        try:
             return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 2**30
-    except Exception:
-        pass
+        except (ValueError, OSError):
+            pass
     return None
 
 
@@ -146,27 +137,105 @@ def environment() -> dict[str, Any]:
     }
 
 
+class LoadMonitor:
+    """Samples total CPU load once a second and the CPU time used by every
+    other process over the run."""
+
+    def __init__(self) -> None:
+        self.samples: list[float] = []
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._start_times: dict[int, tuple[str, float]] = {}
+        self.wall = 0.0
+
+    @staticmethod
+    def _process_times() -> dict[int, tuple[str, float]]:
+        out = {}
+        for p in psutil.process_iter(["name", "cpu_times"]):
+            try:
+                t = p.info["cpu_times"]
+                if t is not None:
+                    out[p.pid] = (p.info["name"] or "?", t.user + t.system)
+            except (psutil.Error, AttributeError):
+                continue
+        return out
+
+    def __enter__(self) -> LoadMonitor:
+        self._t0 = time.perf_counter()
+        if psutil is not None:
+            self._start_times = self._process_times()
+            psutil.cpu_percent(None)
+            self._thread = threading.Thread(target=self._run, daemon=True)
+            self._thread.start()
+        return self
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            self.samples.append(psutil.cpu_percent(interval=1.0))
+
+    def __exit__(self, *exc: Any) -> None:
+        self.wall = time.perf_counter() - self._t0
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join()
+            end = self._process_times()
+            own = os.getpid()
+            busy: dict[str, float] = {}
+            for pid, (name, cpu) in end.items():
+                if pid == own or pid not in self._start_times or name == "System Idle Process":
+                    continue
+                busy[name] = busy.get(name, 0.0) + max(cpu - self._start_times[pid][1], 0.0)
+            self.busiest = sorted(busy.items(), key=lambda kv: -kv[1])[:4]
+
+    def summary(self) -> dict[str, Any]:
+        if psutil is None or not self.samples:
+            return {"measured": False}
+        return {
+            "measured": True,
+            "wall_seconds": round(self.wall, 1),
+            "total_cpu_percent_median": statistics.median(self.samples),
+            "total_cpu_percent_min": min(self.samples),
+            "total_cpu_percent_max": max(self.samples),
+            "samples": len(self.samples),
+            "busiest_other_processes_cpu_seconds": [(n, round(s, 1)) for n, s in self.busiest],
+        }
+
+
 # ---------------------------------------------------------------------------
-# Timing helpers
+# Interleaved timing
 # ---------------------------------------------------------------------------
-def timed(fn: Callable[[], Any], reps: int) -> dict[str, float]:
-    fn()  # warm-up
-    samples = []
-    for _ in range(reps):
-        t0 = time.perf_counter()
+def interleaved(fns: dict[str, Callable[[], Any]], reps: int) -> dict[str, list[float]]:
+    """Time each function once per repetition, in a rotating order, after a
+    warm-up call of each. Returns the per-repetition times by label."""
+    labels = list(fns)
+    for fn in fns.values():
         fn()
-        samples.append(time.perf_counter() - t0)
-    return {"median": statistics.median(samples), "min": min(samples), "max": max(samples)}
+    samples: dict[str, list[float]] = {k: [] for k in labels}
+    for rep in range(reps):
+        shift = rep % len(labels)
+        for label in labels[shift:] + labels[:shift]:
+            t0 = time.perf_counter()
+            fns[label]()
+            samples[label].append(time.perf_counter() - t0)
+    return samples
 
 
-def rate_cell(t: dict[str, float], n: int) -> str:
-    med = n / t["median"]
-    lo, hi = n / t["max"], n / t["min"]
-    return f"{med:,.0f} [{lo:,.0f}, {hi:,.0f}]"
+def _med_range(values: list[float], fmt: str) -> str:
+    return f"{statistics.median(values):{fmt}} [{min(values):{fmt}}, {max(values):{fmt}}]"
 
 
-def time_cell(t: dict[str, float], scale: float = 1e6, unit: str = "us") -> str:
-    return f"{t['median'] * scale:,.1f} [{t['min'] * scale:,.1f}, {t['max'] * scale:,.1f}] {unit}"
+def rate_cell(times: list[float], n: int) -> str:
+    return _med_range([n / t for t in times], ",.0f")
+
+
+def time_cell(times: list[float], n: int = 1, scale: float = 1e6, unit: str = "us") -> str:
+    return _med_range([t / n * scale for t in times], ",.1f") + f" {unit}"
+
+
+def ratio_cell(times: list[float], ref: list[float], n: int = 1, n_ref: int = 1) -> str:
+    """Per-repetition (time per unit) / (derivflow time per unit)."""
+    ratios = [(t / n) / (tr / n_ref) for t, tr in zip(times, ref, strict=True)]
+    return _med_range(ratios, ".2f")
 
 
 def err_cell(errors: np.ndarray, ref: np.ndarray | None = None) -> tuple[str, str]:
@@ -185,7 +254,7 @@ def table(headers: list[str], rows: list[list[str]]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Inputs
+# Inputs and baselines
 # ---------------------------------------------------------------------------
 def random_inputs(n: int, seed: int = 0) -> dict[str, np.ndarray]:
     rng = np.random.default_rng(seed)
@@ -214,40 +283,29 @@ def numpy_scipy_bs_textbook(S, K, T, r, sigma, q):
     return S * np.exp(-q * T) * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
 
 
-class QLEuropean:
-    """One QuantLib option per strike, repriced by changing quote values.
+def _ql_today():
+    today = ql.Date(15, 1, 2025)
+    ql.Settings.instance().evaluationDate = today
+    return today
 
-    Spot, volatility and rates are SimpleQuotes, so a repricing is a quote
-    update plus NPV(); object construction is excluded from the timing.
-    Maturities are whole days (Actual/365 Fixed).
-    """
 
-    def __init__(self, days: int = 365):
-        self.today = ql.Date(15, 1, 2025)
-        ql.Settings.instance().evaluationDate = self.today
-        dc = ql.Actual365Fixed()
-        self.spot, self.vol = ql.SimpleQuote(100.0), ql.SimpleQuote(0.2)
-        self.r, self.q = ql.SimpleQuote(0.03), ql.SimpleQuote(0.01)
-        ts = lambda x: ql.YieldTermStructureHandle(  # noqa: E731
-            ql.FlatForward(self.today, ql.QuoteHandle(x), dc)
-        )
-        vol = ql.BlackVolTermStructureHandle(
-            ql.BlackConstantVol(self.today, ql.NullCalendar(), ql.QuoteHandle(self.vol), dc)
-        )
-        self.process = ql.BlackScholesMertonProcess(
-            ql.QuoteHandle(self.spot), ts(self.q), ts(self.r), vol
-        )
-        self.engine = ql.AnalyticEuropeanEngine(self.process)
-        self.days = days
-        self.T = days / 365
+def _ql_bsm(S, r, q, sigma, quotes=False):
+    """QuantLib Black-Scholes-Merton process; with quotes=True spot and vol are
+    SimpleQuotes so an option can be repriced by updating them."""
+    today = _ql_today()
+    dc = ql.Actual365Fixed()
+    spot, vol = ql.SimpleQuote(S), ql.SimpleQuote(sigma)
+    rts = ql.YieldTermStructureHandle(ql.FlatForward(today, r, dc))
+    qts = ql.YieldTermStructureHandle(ql.FlatForward(today, q, dc))
+    vts = ql.BlackVolTermStructureHandle(
+        ql.BlackConstantVol(today, ql.NullCalendar(), ql.QuoteHandle(vol), dc)
+    )
+    process = ql.BlackScholesMertonProcess(ql.QuoteHandle(spot), qts, rts, vts)
+    return (process, spot, vol) if quotes else process
 
-    def option(self, K: float, option_type: str = "call") -> Any:
-        payoff = ql.PlainVanillaPayoff(
-            ql.Option.Call if option_type == "call" else ql.Option.Put, K
-        )
-        opt = ql.VanillaOption(payoff, ql.EuropeanExercise(self.today + self.days))
-        opt.setPricingEngine(self.engine)
-        return opt
+
+def _ql_payoff(option_type, K):
+    return ql.PlainVanillaPayoff(ql.Option.Call if option_type == "call" else ql.Option.Put, K)
 
 
 # ---------------------------------------------------------------------------
@@ -257,141 +315,106 @@ def bench_pricing(reps: int, quick: bool) -> dict[str, Any]:
     n_vec = 100_000 if quick else 1_000_000
     n_scalar = 2_000 if quick else 20_000
     x = random_inputs(n_vec)
-    rows, notes = [], []
+    args = (x["S"], x["K"], x["T"], x["r"], x["sigma"], x["q"])
 
-    t = timed(
-        lambda: black_scholes_price(x["S"], x["K"], x["T"], x["r"], x["sigma"], "call", x["q"]),
+    vec = interleaved(
+        {
+            "derivflow": lambda: black_scholes_price(*args[:5], "call", args[5]),
+            "ndtr": lambda: numpy_scipy_bs_ndtr(*args),
+            "textbook": lambda: numpy_scipy_bs_textbook(*args),
+        },
         reps,
     )
-    rows.append(["derivflow `black_scholes_price` (vectorised)", f"{n_vec:,}", rate_cell(t, n_vec)])
-    t = timed(lambda: numpy_scipy_bs_ndtr(x["S"], x["K"], x["T"], x["r"], x["sigma"], x["q"]), reps)
-    rows.append(
-        [
-            "plain NumPy/SciPy formula, `scipy.special.ndtr` (vectorised)",
-            f"{n_vec:,}",
-            rate_cell(t, n_vec),
-        ]
-    )
-    t = timed(
-        lambda: numpy_scipy_bs_textbook(x["S"], x["K"], x["T"], x["r"], x["sigma"], x["q"]), reps
-    )
-    rows.append(
-        [
-            "textbook NumPy/SciPy formula, `scipy.stats.norm.cdf` (vectorised)",
-            f"{n_vec:,}",
-            rate_cell(t, n_vec),
-        ]
-    )
-    notes.append(
-        "The `ndtr` row is the like-for-like baseline: the same normal CDF as derivflow, without "
-        "derivflow's input checks, broadcasting of all six inputs, expiry handling and call/put "
-        "branch. The `norm.cdf` row is the textbook form, which adds scipy.stats overhead."
-    )
+    names = {
+        "derivflow": "derivflow `black_scholes_price` (vectorised)",
+        "ndtr": "plain NumPy/SciPy formula, `scipy.special.ndtr` (vectorised)",
+        "textbook": "textbook NumPy/SciPy formula, `scipy.stats.norm.cdf` (vectorised)",
+    }
+    rows = [
+        [names[k], f"{n_vec:,}", rate_cell(v, n_vec), ratio_cell(v, vec["derivflow"])]
+        for k, v in vec.items()
+    ]
 
     # Scalar: fixed strike and maturity, spot and vol vary (QuantLib reprices via quotes).
-    xs = {k: v[:n_scalar] for k, v in x.items()}
+    S_s, v_s = x["S"][:n_scalar], x["sigma"][:n_scalar]
     K, T = 100.0, 1.0
     bs = BlackScholesAnalytical()
-    t = timed(
-        lambda: [
-            bs.price(s, K, T, 0.03, v, "call", 0.01)
-            for s, v in zip(xs["S"], xs["sigma"], strict=True)
-        ],
-        reps,
-    )
-    rows.append(
-        [
-            "derivflow `BlackScholesAnalytical.price` (scalar loop)",
-            f"{n_scalar:,}",
-            rate_cell(t, n_scalar),
+    fns = {
+        "derivflow": lambda: [
+            bs.price(s, K, T, 0.03, v, "call", 0.01) for s, v in zip(S_s, v_s, strict=True)
         ]
-    )
+    }
+    names2 = {"derivflow": "derivflow `BlackScholesAnalytical.price` (scalar loop)"}
     if pv_price is not None:
-        t = timed(
-            lambda: [
-                pv_price("c", s, K, T, 0.03, v, 0.01)
-                for s, v in zip(xs["S"], xs["sigma"], strict=True)
-            ],
-            reps,
-        )
-        rows.append(
-            [
-                "py_vollib `black_scholes_merton` (scalar loop)",
-                f"{n_scalar:,}",
-                rate_cell(t, n_scalar),
-            ]
-        )
+        fns["py_vollib"] = lambda: [
+            pv_price("c", s, K, T, 0.03, v, 0.01) for s, v in zip(S_s, v_s, strict=True)
+        ]
+        names2["py_vollib"] = "py_vollib `black_scholes_merton` (scalar loop)"
     if ql is not None:
-        env = QLEuropean(365)
-        opt = env.option(K)
+        process, spot, vol = _ql_bsm(100.0, 0.03, 0.01, 0.2, quotes=True)
+        opt = ql.VanillaOption(_ql_payoff("call", K), ql.EuropeanExercise(_ql_today() + 365))
+        opt.setPricingEngine(ql.AnalyticEuropeanEngine(process))
 
         def ql_loop():
-            for s, v in zip(xs["S"], xs["sigma"], strict=True):
-                env.spot.setValue(float(s))
-                env.vol.setValue(float(v))
+            for s, v in zip(S_s, v_s, strict=True):
+                spot.setValue(float(s))
+                vol.setValue(float(v))
                 opt.NPV()
 
-        t = timed(ql_loop, reps)
-        rows.append(
-            [
-                "QuantLib `AnalyticEuropeanEngine` (scalar loop)",
-                f"{n_scalar:,}",
-                rate_cell(t, n_scalar),
-            ]
-        )
-        notes.append(
-            "QuantLib reprices a prebuilt option after updating two quotes, so each call "
-            "includes its observer notifications; the Python loops include interpreter overhead."
-        )
+        fns["QuantLib"] = ql_loop
+        names2["QuantLib"] = "QuantLib `AnalyticEuropeanEngine` (scalar loop)"
+    sc = interleaved(fns, reps)
+    rows += [
+        [names2[k], f"{n_scalar:,}", rate_cell(v, n_scalar), ratio_cell(v, sc["derivflow"])]
+        for k, v in sc.items()
+    ]
 
-    # Accuracy against QuantLib on 2,000 options with varying strikes and maturities.
     acc_rows = []
     if ql is not None:
         n_acc = 2_000
         y = random_inputs(n_acc, seed=1)
         days = np.maximum(1, np.round(y["T"] * 365)).astype(int)
         ours, ref, ref_ndtr, ref_textbook = [], [], [], []
-        today = ql.Date(15, 1, 2025)
-        ql.Settings.instance().evaluationDate = today
-        dc = ql.Actual365Fixed()
+        today = _ql_today()
         for i in range(n_acc):
             Ti = days[i] / 365
-            h = lambda rate: ql.YieldTermStructureHandle(ql.FlatForward(today, float(rate), dc))  # noqa: E731
-            proc = ql.BlackScholesMertonProcess(
-                ql.QuoteHandle(ql.SimpleQuote(float(y["S"][i]))),
-                h(y["q"][i]),
-                h(y["r"][i]),
-                ql.BlackVolTermStructureHandle(
-                    ql.BlackConstantVol(today, ql.NullCalendar(), float(y["sigma"][i]), dc)
-                ),
+            process = _ql_bsm(
+                float(y["S"][i]), float(y["r"][i]), float(y["q"][i]), float(y["sigma"][i])
             )
             opt = ql.VanillaOption(
-                ql.PlainVanillaPayoff(ql.Option.Call, float(y["K"][i])),
-                ql.EuropeanExercise(today + int(days[i])),
+                _ql_payoff("call", float(y["K"][i])), ql.EuropeanExercise(today + int(days[i]))
             )
-            opt.setPricingEngine(ql.AnalyticEuropeanEngine(proc))
+            opt.setPricingEngine(ql.AnalyticEuropeanEngine(process))
             ref.append(opt.NPV())
-            ours.append(
-                black_scholes_price(
-                    y["S"][i], y["K"][i], Ti, y["r"][i], y["sigma"][i], "call", y["q"][i]
-                )
-            )
-            args = (y["S"][i], y["K"][i], Ti, y["r"][i], y["sigma"][i], y["q"][i])
-            ref_ndtr.append(numpy_scipy_bs_ndtr(*args))
-            ref_textbook.append(numpy_scipy_bs_textbook(*args))
+            a = (y["S"][i], y["K"][i], Ti, y["r"][i], y["sigma"][i], y["q"][i])
+            ours.append(black_scholes_price(*a[:5], "call", a[5]))
+            ref_ndtr.append(numpy_scipy_bs_ndtr(*a))
+            ref_textbook.append(numpy_scipy_bs_textbook(*a))
         ref_a = np.array(ref)
-        a, rel = err_cell(np.array(ours) - ref_a, ref_a)
-        acc_rows.append(["derivflow vs QuantLib", f"{n_acc:,}", a, rel])
-        a, rel = err_cell(np.array(ref_ndtr) - ref_a, ref_a)
-        acc_rows.append(["NumPy/SciPy formula with `ndtr` vs QuantLib", f"{n_acc:,}", a, rel])
-        a, rel = err_cell(np.array(ref_textbook) - ref_a, ref_a)
-        acc_rows.append(["NumPy/SciPy formula with `norm.cdf` vs QuantLib", f"{n_acc:,}", a, rel])
+        for label, vals in (
+            ("derivflow vs QuantLib", ours),
+            ("NumPy/SciPy formula with `ndtr` vs QuantLib", ref_ndtr),
+            ("NumPy/SciPy formula with `norm.cdf` vs QuantLib", ref_textbook),
+        ):
+            a, rel = err_cell(np.array(vals) - ref_a, ref_a)
+            acc_rows.append([label, f"{n_acc:,}", a, rel])
+
+    notes = [
+        "The `ndtr` row is the like-for-like baseline: the same normal CDF as derivflow, without "
+        "derivflow's input checks, broadcasting of all six inputs, expiry handling and call/put "
+        "branch. The `norm.cdf` row is the textbook form, which adds scipy.stats overhead.",
+        "QuantLib reprices a prebuilt option after updating two quotes, so each call includes its "
+        "observer notifications and the Python binding; the Python loops include interpreter "
+        "overhead.",
+        "Vectorised rows: random S, K in [80, 120], T in [0.05, 2], r in [0, 6%], q in [0, 3%], "
+        "sigma in [10%, 60%].",
+        "Scalar rows: K=100, T=1, r=3%, q=1%, the same random S and sigma for every library.",
+    ]
     return {
         "rows": rows,
         "notes": notes,
         "accuracy": acc_rows,
-        "n_vec": n_vec,
-        "n_scalar": n_scalar,
+        "samples": {"vectorised": vec, "scalar": sc},
     }
 
 
@@ -439,84 +462,53 @@ def bench_implied_vol(reps: int, quick: bool) -> dict[str, Any]:
     n_vec = 10_000 if quick else 100_000
     x = iv_inputs(max(n_scalar, n_vec))
     xs = {k: v[:n_scalar] for k, v in x.items()}
-    rows, notes = [], []
-
-    def run_ours():
-        return [
-            implied_volatility(p, s, k, t, r, o, q)
-            for p, s, k, t, r, o, q in zip(
-                xs["price"], xs["S"], xs["K"], xs["T"], xs["r"], xs["ot"], xs["q"], strict=True
-            )
-        ]
+    xv = {k: v[:n_vec] for k, v in x.items()}
+    notes = []
 
     def accuracy(vols, data):
-        err = np.abs(np.asarray(vols) - data["sigma"])
+        err = np.abs(np.asarray(vols, dtype=float) - data["sigma"])
         good = data["vega"] > 1e-6 * data["S"]
         return f"{err.max():.1e}", f"{err[good].max():.1e}", f"{(err / data['sigma']).max():.1e}"
 
-    t = timed(run_ours, reps)
-    rows.append(
-        [
-            "derivflow `implied_volatility` (scalar loop)",
-            f"{len(xs['price']):,}",
-            time_cell({k: v / len(xs["price"]) for k, v in t.items()}),
-            *accuracy(run_ours(), xs),
-        ]
-    )
+    def scalar_args(d):
+        return zip(d["price"], d["S"], d["K"], d["T"], d["r"], d["ot"], d["q"], strict=True)
 
-    xv = {k: v[:n_vec] for k, v in x.items()}
-
-    def run_vec():
-        return implied_volatility_vectorized(
+    fns = {
+        "derivflow": lambda: [
+            implied_volatility(p, s, k, t, r, o, q) for p, s, k, t, r, o, q in scalar_args(xs)
+        ],
+        "derivflow_vec": lambda: implied_volatility_vectorized(
             xv["price"], xv["S"], xv["K"], xv["T"], xv["r"], xv["ot"], xv["q"]
-        )
-
-    t = timed(run_vec, reps)
-    rows.append(
-        [
-            "derivflow `implied_volatility_vectorized`",
-            f"{len(xv['price']):,}",
-            time_cell({k: v / len(xv["price"]) for k, v in t.items()}),
-            *accuracy(run_vec(), xv),
-        ]
-    )
-
+        ),
+    }
+    sizes = {"derivflow": len(xs["price"]), "derivflow_vec": len(xv["price"])}
+    names = {
+        "derivflow": "derivflow `implied_volatility` (scalar loop)",
+        "derivflow_vec": "derivflow `implied_volatility_vectorized`",
+    }
+    data = {"derivflow": xs, "derivflow_vec": xv}
     if pv_iv is not None:
-
-        def run_pv():
-            return [
-                pv_iv(p, s, k, t, r, q, o[0])
-                for p, s, k, t, r, o, q in zip(
-                    xs["price"], xs["S"], xs["K"], xs["T"], xs["r"], xs["ot"], xs["q"], strict=True
-                )
-            ]
-
-        t = timed(run_pv, reps)
-        rows.append(
-            [
-                "py_vollib (Let's Be Rational, scalar loop)",
-                f"{len(xs['price']):,}",
-                time_cell({k: v / len(xs["price"]) for k, v in t.items()}),
-                *accuracy(run_pv(), xs),
-            ]
-        )
-
+        fns["py_vollib"] = lambda: [
+            pv_iv(p, s, k, t, r, q, o[0]) for p, s, k, t, r, o, q in scalar_args(xs)
+        ]
+        sizes["py_vollib"] = len(xs["price"])
+        names["py_vollib"] = "py_vollib (Let's Be Rational, scalar loop)"
+        data["py_vollib"] = xs
     if ql is not None:
         n_ql = min(len(xs["price"]), 500 if quick else 2_000)
         xq = {k: v[:n_ql].copy() for k, v in xs.items()}
-        env = QLEuropean(365)
+        process = _ql_bsm(100.0, 0.03, 0.01, 0.2)
+        today = _ql_today()
         opts = []
-        today = env.today
         for i in range(n_ql):
             days = max(1, round(xq["T"][i] * 365))
             xq["T"][i] = days / 365
             xq["price"][i] = black_scholes_price(
                 xq["S"][i], xq["K"][i], xq["T"][i], 0.03, xq["sigma"][i], xq["ot"][i], 0.01
             )
-            payoff = ql.PlainVanillaPayoff(
-                ql.Option.Call if xq["ot"][i] == "call" else ql.Option.Put, float(xq["K"][i])
+            opt = ql.VanillaOption(
+                _ql_payoff(xq["ot"][i], float(xq["K"][i])), ql.EuropeanExercise(today + days)
             )
-            opt = ql.VanillaOption(payoff, ql.EuropeanExercise(today + days))
             opts.append(opt)
 
         def run_ql():
@@ -525,103 +517,118 @@ def bench_implied_vol(reps: int, quick: bool) -> dict[str, Any]:
                 try:
                     out.append(
                         opt.impliedVolatility(
-                            float(xq["price"][i]), env.process, 1e-12, 1000, 1e-7, 4.0
+                            float(xq["price"][i]), process, 1e-12, 1000, 1e-7, 4.0
                         )
                     )
                 except RuntimeError:
                     out.append(np.nan)
             return out
 
-        t = timed(run_ql, max(1, reps // 2))
-        vols = np.array(run_ql())
-        failed = int(np.isnan(vols).sum())
+        fns["QuantLib"] = run_ql
+        sizes["QuantLib"] = n_ql
+        names["QuantLib"] = "QuantLib `impliedVolatility` (scalar loop)"
+        data["QuantLib"] = xq
+        failed = int(np.isnan(np.array(run_ql())).sum())
+        notes.append(
+            "QuantLib's solver is given a price accuracy of 1e-12 and bounds [1e-7, 4]; "
+            f"{failed} of {n_ql} quotes raised. Its maturities are rounded to whole days, "
+            "so its quotes are repriced at those maturities."
+        )
+    samples = interleaved(fns, reps)
+    rows = []
+    for k, v in samples.items():
+        vols = np.asarray(fns[k](), dtype=float)
         rows.append(
             [
-                "QuantLib `impliedVolatility` (scalar loop)",
-                f"{n_ql:,}",
-                time_cell({k: v / n_ql for k, v in t.items()}),
-                *accuracy(np.nan_to_num(vols, nan=np.inf) if failed else vols, xq),
+                names[k],
+                f"{sizes[k]:,}",
+                time_cell(v, sizes[k]),
+                ratio_cell(v, samples["derivflow"], sizes[k], sizes["derivflow"]),
+                *accuracy(np.nan_to_num(vols, nan=np.inf), data[k]),
             ]
-        )
-        notes.append(
-            f"QuantLib's solver is given a price accuracy of 1e-12 and bounds [1e-7, 4]; "
-            f"{failed} of {n_ql} quotes raised. Its maturities are rounded to whole days, so its "
-            "quotes are repriced at those maturities."
         )
     notes.append(
         "Inputs: S=100, K/S uniform in [0.7, 1.3], T uniform in [1 week, 2 years], sigma uniform "
         "in [8%, 80%], r=3%, q=1%, half calls and half puts, prices from known volatilities. "
-        "Error columns: max |solved - true| over all quotes, over quotes with vega > 1e-6 S, "
-        "and max relative error."
+        "Error columns: max |solved - true| over all quotes, over quotes with vega > 1e-6 S, and "
+        "max relative error. The ratio compares time per quote with the scalar derivflow solver."
     )
-    return {"rows": rows, "notes": notes}
+    return {"rows": rows, "notes": notes, "samples": samples}
 
 
 def bench_greeks(reps: int, quick: bool) -> dict[str, Any]:
     n = 2_000 if quick else 20_000
     x = random_inputs(n, seed=3)
     calc = GreeksCalculator()
-    rows, notes, acc = [], [], []
     K, T = 100.0, 1.0
-
-    def ours():
-        return [
+    fns = {
+        "derivflow": lambda: [
             calc.analytical_greeks(s, K, T, 0.03, v, "call", 0.01)
             for s, v in zip(x["S"], x["sigma"], strict=True)
         ]
-
-    t = timed(ours, reps)
-    rows.append(
-        ["derivflow `analytical_greeks` (10 Greeks, scalar loop)", f"{n:,}", rate_cell(t, n)]
-    )
+    }
+    names = {"derivflow": "derivflow `analytical_greeks` (10 Greeks, scalar loop)"}
+    acc, notes = [], []
     if ql is not None:
-        env = QLEuropean(365)
-        opt = env.option(K)
+        process, spot, vol = _ql_bsm(100.0, 0.03, 0.01, 0.2, quotes=True)
+        opt = ql.VanillaOption(_ql_payoff("call", K), ql.EuropeanExercise(_ql_today() + 365))
+        opt.setPricingEngine(ql.AnalyticEuropeanEngine(process))
 
         def ql_greeks():
             out = []
             for s, v in zip(x["S"], x["sigma"], strict=True):
-                env.spot.setValue(float(s))
-                env.vol.setValue(float(v))
+                spot.setValue(float(s))
+                vol.setValue(float(v))
                 out.append((opt.delta(), opt.gamma(), opt.vega(), opt.theta(), opt.rho()))
             return out
 
-        t = timed(ql_greeks, reps)
-        rows.append(
-            ["QuantLib `AnalyticEuropeanEngine` (5 Greeks, scalar loop)", f"{n:,}", rate_cell(t, n)]
-        )
+        fns["QuantLib"] = ql_greeks
+        names["QuantLib"] = "QuantLib `AnalyticEuropeanEngine` (5 Greeks, scalar loop)"
         notes.append(
             "derivflow computes 10 Greeks per call, QuantLib 5 here "
             "(delta, gamma, vega, theta, rho)."
         )
         ref = np.array(ql_greeks())
         mine = np.array(
-            [(g.delta, g.gamma, g.vega * 100, g.theta * 365, g.rho * 100) for g in ours()]
+            [
+                (g.delta, g.gamma, g.vega * 100, g.theta * 365, g.rho * 100)
+                for g in fns["derivflow"]()
+            ]
         )
         for j, name in enumerate(["delta", "gamma", "vega", "theta", "rho"]):
             a, rel = err_cell(mine[:, j] - ref[:, j], ref[:, j])
             acc.append([name, f"{n:,}", a, rel])
-    return {"rows": rows, "notes": notes, "accuracy": acc}
+    samples = interleaved(fns, reps)
+    rows = [
+        [names[k], f"{n:,}", rate_cell(v, n), ratio_cell(v, samples["derivflow"])]
+        for k, v in samples.items()
+    ]
+    return {"rows": rows, "notes": notes, "accuracy": acc, "samples": samples}
 
 
 def bench_monte_carlo(reps: int, quick: bool) -> dict[str, Any]:
     S, K, T, r, sigma = 100.0, 100.0, 1.0, 0.05, 0.2
     truth = black_scholes_price(S, K, T, r, sigma)
     sizes = [1_000, 10_000, 100_000] if quick else [1_000, 10_000, 100_000, 1_000_000]
-    rows = []
+    methods = {
+        "plain": {},
+        "antithetic": {"antithetic": True},
+        "control variate": {"control_variate": True},
+    }
+    rows, all_samples = [], {}
     for n in sizes:
-        for label, kw in (
-            ("plain", {}),
-            ("antithetic", {"antithetic": True}),
-            ("control variate", {"control_variate": True}),
-        ):
-            res = MonteCarloEngine(n, random_seed=11).price(S, K, T, r, sigma, "call", **kw)
-            t = timed(
+        fns = {
+            label: (
                 lambda n=n, kw=kw: MonteCarloEngine(n, random_seed=11).price(
                     S, K, T, r, sigma, "call", **kw
-                ),
-                reps,
+                )
             )
+            for label, kw in methods.items()
+        }
+        samples = interleaved(fns, reps)
+        all_samples[n] = samples
+        for label, kw in methods.items():
+            res = MonteCarloEngine(n, random_seed=11).price(S, K, T, r, sigma, "call", **kw)
             rows.append(
                 [
                     f"{n:,}",
@@ -629,50 +636,24 @@ def bench_monte_carlo(reps: int, quick: bool) -> dict[str, Any]:
                     f"{res['price']:.4f}",
                     f"{res['std_error']:.4f}",
                     f"{abs(res['price'] - truth):.4f}",
-                    time_cell(t, 1e6, "us"),
+                    time_cell(samples[label]),
+                    ratio_cell(samples[label], samples["plain"]),
                 ]
             )
-    return {"rows": rows, "truth": truth}
+    return {"rows": rows, "truth": truth, "samples": all_samples}
 
 
 def bench_trees_heston(reps: int, quick: bool) -> dict[str, Any]:
     rows, notes = [], []
     S, K, T, r, sigma = 36.0, 40.0, 1.0, 0.06, 0.2
     ref = None
+    tree_samples = {}
     if ql is not None:
-        env_today = ql.Date(15, 1, 2025)
-        ql.Settings.instance().evaluationDate = env_today
-        dc = ql.Actual365Fixed()
-        h = lambda x: ql.YieldTermStructureHandle(ql.FlatForward(env_today, x, dc))  # noqa: E731
-        proc = ql.BlackScholesMertonProcess(
-            ql.QuoteHandle(ql.SimpleQuote(S)),
-            h(0.0),
-            h(r),
-            ql.BlackVolTermStructureHandle(
-                ql.BlackConstantVol(env_today, ql.NullCalendar(), sigma, dc)
-            ),
-        )
-        opt = ql.VanillaOption(
-            ql.PlainVanillaPayoff(ql.Option.Put, K), ql.AmericanExercise(env_today, env_today + 365)
-        )
-        opt.setPricingEngine(ql.FdBlackScholesVanillaEngine(proc, 4000, 4000))
-        ref = opt.NPV()
-        for steps in (100, 500, 2000):
-            opt.setPricingEngine(ql.BinomialVanillaEngine(proc, "crr", steps))
-
-            def ql_tree(opt=opt):
-                opt.recalculate()  # QuantLib caches results; force a fresh valuation
-                return opt.NPV()
-
-            t = timed(ql_tree, reps)
-            rows.append(
-                [
-                    f"QuantLib CRR tree ({steps} steps)",
-                    f"{opt.NPV():.6f}",
-                    f"{abs(opt.NPV() - ref):.1e}",
-                    time_cell(t, 1e3, "ms"),
-                ]
-            )
+        process = _ql_bsm(S, r, 0.0, sigma)
+        today = _ql_today()
+        fd = ql.VanillaOption(_ql_payoff("put", K), ql.AmericanExercise(today, today + 365))
+        fd.setPricingEngine(ql.FdBlackScholesVanillaEngine(process, 4000, 4000))
+        ref = fd.NPV()
         notes.append(
             f"Reference: QuantLib FdBlackScholesVanillaEngine on a 4000 x 4000 grid ({ref:.6f}). "
             "QuantLib's 'crr' tree uses a drift-adjusted up-probability, so its tree values differ "
@@ -680,16 +661,34 @@ def bench_trees_heston(reps: int, quick: bool) -> dict[str, Any]:
         )
     for steps in (100, 500, 2000) if not quick else (100, 500):
         tree = BinomialTree(steps)
-        val = tree.price(S, K, T, r, sigma, "put", american=True)
-        t = timed(lambda tree=tree: tree.price(S, K, T, r, sigma, "put", american=True), reps)
-        rows.append(
-            [
-                f"derivflow BinomialTree ({steps} steps)",
-                f"{val:.6f}",
-                f"{abs(val - ref):.1e}" if ref else "-",
-                time_cell(t, 1e3, "ms"),
-            ]
-        )
+        fns = {"derivflow": lambda tree=tree: tree.price(S, K, T, r, sigma, "put", american=True)}
+        if ql is not None:
+            opt = ql.VanillaOption(_ql_payoff("put", K), ql.AmericanExercise(today, today + 365))
+            opt.setPricingEngine(ql.BinomialVanillaEngine(process, "crr", steps))
+
+            def ql_tree(opt=opt):
+                opt.recalculate()  # QuantLib caches results; force a fresh valuation
+                return opt.NPV()
+
+            fns["QuantLib"] = ql_tree
+        samples = interleaved(fns, reps)
+        tree_samples[steps] = samples
+        for k, v in samples.items():
+            val = fns[k]()
+            label = (
+                f"derivflow BinomialTree ({steps} steps)"
+                if k == "derivflow"
+                else f"QuantLib CRR tree ({steps} steps)"
+            )
+            rows.append(
+                [
+                    label,
+                    f"{val:.6f}",
+                    f"{abs(val - ref):.1e}" if ref else "-",
+                    time_cell(v, 1, 1e3, "ms"),
+                    ratio_cell(v, samples["derivflow"]),
+                ]
+            )
 
     heston_rows = []
     params = (0.04, 2.0, 0.04, 0.5, -0.7)
@@ -698,22 +697,20 @@ def bench_trees_heston(reps: int, quick: bool) -> dict[str, Any]:
         warnings.simplefilter("ignore")
         model.set_parameters(*params)
     strikes = np.linspace(70, 130, 13)
-    t = timed(
-        lambda: [model.analytic_price(100.0, k, 1.0, 0.03, "call", 0.01) for k in strikes], reps
-    )
-    ours = np.array([model.analytic_price(100.0, k, 1.0, 0.03, "call", 0.01) for k in strikes])
+    fns = {
+        "derivflow": lambda: [
+            model.analytic_price(100.0, k, 1.0, 0.03, "call", 0.01) for k in strikes
+        ]
+    }
     if ql is not None:
-        today = ql.Date(15, 1, 2025)
-        ql.Settings.instance().evaluationDate = today
+        today = _ql_today()
         dc = ql.Actual365Fixed()
         h = lambda x: ql.YieldTermStructureHandle(ql.FlatForward(today, x, dc))  # noqa: E731
         hp = ql.HestonProcess(h(0.03), h(0.01), ql.QuoteHandle(ql.SimpleQuote(100.0)), *params)
         engine = ql.AnalyticHestonEngine(ql.HestonModel(hp), 1e-12, 100_000)
         opts = []
         for k in strikes:
-            o = ql.VanillaOption(
-                ql.PlainVanillaPayoff(ql.Option.Call, float(k)), ql.EuropeanExercise(today + 365)
-            )
+            o = ql.VanillaOption(_ql_payoff("call", float(k)), ql.EuropeanExercise(today + 365))
             o.setPricingEngine(engine)
             opts.append(o)
 
@@ -722,59 +719,84 @@ def bench_trees_heston(reps: int, quick: bool) -> dict[str, Any]:
                 o.recalculate()
             return [o.NPV() for o in opts]
 
-        tq = timed(ql_prices, reps)
+        fns["QuantLib"] = ql_prices
+    samples = interleaved(fns, reps)
+    ours = np.array(fns["derivflow"]())
+    n = len(strikes)
+    if ql is not None:
         ref_h = np.array(ql_prices())
         a, rel = err_cell(ours - ref_h, ref_h)
-        heston_rows.append(
-            [
-                "derivflow `analytic_price` (scipy quad)",
-                time_cell({k: v / len(strikes) for k, v in t.items()}, 1e3, "ms"),
-                a,
-                rel,
-            ]
-        )
+    else:
+        a, rel = "-", "-"
+    heston_rows.append(
+        [
+            "derivflow `analytic_price` (scipy quad)",
+            time_cell(samples["derivflow"], n, 1e3, "ms"),
+            "1.00 [1.00, 1.00]",
+            a,
+            rel,
+        ]
+    )
+    if ql is not None:
         heston_rows.append(
             [
                 "QuantLib `AnalyticHestonEngine` (adaptive Gauss-Lobatto, rel. tol 1e-12)",
-                time_cell({k: v / len(strikes) for k, v in tq.items()}, 1e3, "ms"),
+                time_cell(samples["QuantLib"], n, 1e3, "ms"),
+                ratio_cell(samples["QuantLib"], samples["derivflow"]),
                 "reference",
                 "-",
             ]
         )
-    else:
-        heston_rows.append(
-            [
-                "derivflow `analytic_price` (scipy quad)",
-                time_cell({k: v / len(strikes) for k, v in t.items()}, 1e3, "ms"),
-                "-",
-                "-",
-            ]
-        )
-    return {"rows": rows, "notes": notes, "heston": heston_rows}
+    return {
+        "rows": rows,
+        "notes": notes,
+        "heston": heston_rows,
+        "samples": {"trees": tree_samples, "heston": samples},
+    }
+
+
+def load_line(load: dict[str, Any]) -> str:
+    if not load.get("measured"):
+        return "Background load: not measured (install psutil)."
+    busiest = ", ".join(
+        f"{name} {sec} CPU-s" for name, sec in load["busiest_other_processes_cpu_seconds"]
+    )
+    return (
+        f"Background load during this run ({load['wall_seconds']} s, {load['samples']} one-second "
+        f"samples): total CPU median {load['total_cpu_percent_median']:.0f}% "
+        f"[{load['total_cpu_percent_min']:.0f}%, {load['total_cpu_percent_max']:.0f}%] of "
+        f"{os.cpu_count()} logical CPUs, including this benchmark's own single thread. "
+        f"Busiest other processes: {busiest}. Absolute rates may be lower than on an idle "
+        "machine; the ratios are "
+        "measured side by side within each repetition."
+    )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--reps", type=int, default=7, help="timed repetitions per measurement")
+    parser.add_argument("--reps", type=int, default=DEFAULT_REPS, help="interleaved repetitions")
     parser.add_argument("--quick", action="store_true", help="smaller problem sizes")
     parser.add_argument("--output", help="also write the Markdown report to this file")
     parser.add_argument("--json", help="also write raw results as JSON to this file")
     args = parser.parse_args()
 
     env = environment()
-    pricing = bench_pricing(args.reps, args.quick)
-    iv = bench_implied_vol(args.reps, args.quick)
-    greeks = bench_greeks(args.reps, args.quick)
-    mc = bench_monte_carlo(args.reps, args.quick)
-    th = bench_trees_heston(args.reps, args.quick)
+    with LoadMonitor() as monitor:
+        pricing = bench_pricing(args.reps, args.quick)
+        iv = bench_implied_vol(args.reps, args.quick)
+        greeks = bench_greeks(args.reps, args.quick)
+        mc = bench_monte_carlo(args.reps, args.quick)
+        th = bench_trees_heston(args.reps, args.quick)
+    load = monitor.summary()
 
     cmd = (
         COMMAND
         + (" --quick" if args.quick else "")
-        + (f" --reps {args.reps}" if args.reps != 7 else "")
+        + (f" --reps {args.reps}" if args.reps != DEFAULT_REPS else "")
     )
+    ratio = "time / derivflow, median [min, max]"
     lines = [
         "# derivflow benchmark results",
         "",
@@ -782,20 +804,22 @@ def main() -> None:
         "",
         table(["item", "value"], [[k, str(v)] for k, v in env.items()]),
         "",
-        f"Each timing: one warm-up run, then {args.reps} repetitions; median and [min, max]. "
-        "Everything runs single-threaded in one Python process.",
+        f"Method: implementations in one table are timed in the same loop, {args.reps} repetitions "
+        "after one warm-up call each, in a rotating order. Rates and times are median [min, max]; "
+        f"the '{ratio}' column is the per-repetition ratio of time per unit to derivflow's "
+        "(below 1 means faster than derivflow). Everything runs single-threaded in one Python "
+        "process.",
+        "",
+        load_line(load),
         "",
         "## European option pricing throughput (options per second)",
         "",
-        table(["implementation", "options", "options/s median [min, max]"], pricing["rows"]),
+        table(["implementation", "options", "options/s median [min, max]", ratio], pricing["rows"]),
         "",
         *[f"- {n}" for n in pricing["notes"]],
-        "- Vectorised rows: random S, K in [80, 120], T in [0.05, 2], r in [0, 6%], "
-        "q in [0, 3%], sigma in [10%, 60%].",
-        "- Scalar rows: K=100, T=1, r=3%, q=1%, the same random S and sigma for every library.",
         "",
-        "Accuracy against QuantLib (random inputs, maturities rounded to whole days; the "
-        "largest relative errors are on the smallest, deep out-of-the-money prices):",
+        "Accuracy against QuantLib (random inputs, maturities rounded to whole days; the largest "
+        "relative errors are on the smallest, deep out-of-the-money prices):",
         "",
         table(["comparison", "options", "max abs error", "max rel error"], pricing["accuracy"])
         if pricing["accuracy"]
@@ -808,6 +832,7 @@ def main() -> None:
                 "implementation",
                 "quotes",
                 "time per quote median [min, max]",
+                ratio,
                 "max abs error",
                 "max abs error (vega > 1e-6 S)",
                 "max rel error",
@@ -819,7 +844,7 @@ def main() -> None:
         "",
         "## Greeks (options per second) and accuracy against QuantLib",
         "",
-        table(["implementation", "options", "options/s median [min, max]"], greeks["rows"]),
+        table(["implementation", "options", "options/s median [min, max]", ratio], greeks["rows"]),
         "",
         *[f"- {n}" for n in greeks["notes"]],
         "",
@@ -833,27 +858,49 @@ def main() -> None:
         "## Monte Carlo: standard error against number of paths",
         "",
         "ATM European call, S=K=100, T=1, r=5%, sigma=20%, seed 11; "
-        f"Black-Scholes value {mc['truth']:.4f}.",
+        f"Black-Scholes value {mc['truth']:.4f}. The ratio column is relative to the plain "
+        "estimator with the same number of paths.",
         "",
         table(
-            ["paths", "method", "price", "std error", "abs error", "time median [min, max]"],
+            [
+                "paths",
+                "method",
+                "price",
+                "std error",
+                "abs error",
+                "time median [min, max]",
+                "time / plain",
+            ],
             mc["rows"],
         ),
         "",
         "## American put (S=36, K=40, T=1, r=6%, sigma=20%) and Heston pricing",
         "",
         table(
-            ["implementation", "price", "abs diff to FD reference", "time median [min, max]"],
+            [
+                "implementation",
+                "price",
+                "abs diff to FD reference",
+                "time median [min, max]",
+                ratio,
+            ],
             th["rows"],
         ),
         "",
         *[f"- {n}" for n in th["notes"]],
+        "- The ratio compares each tree with derivflow's tree at the same number of steps.",
         "",
-        "Heston analytic call prices, 13 strikes 70-130, T=1, r=3%, q=1%, v0=theta=0.04, "
-        "kappa=2, sigma=0.5, rho=-0.7 (time per price):",
+        "Heston analytic call prices, 13 strikes 70-130, T=1, r=3%, q=1%, v0=theta=0.04, kappa=2, "
+        "sigma=0.5, rho=-0.7 (time per price):",
         "",
         table(
-            ["implementation", "time per price median [min, max]", "max abs diff", "max rel diff"],
+            [
+                "implementation",
+                "time per price median [min, max]",
+                ratio,
+                "max abs diff",
+                "max rel diff",
+            ],
             th["heston"],
         ),
         "",
@@ -867,7 +914,9 @@ def main() -> None:
         with open(args.json, "w", encoding="utf-8", newline="\n") as f:
             json.dump(
                 {
+                    "command": cmd,
                     "environment": env,
+                    "background_load": load,
                     "pricing": pricing,
                     "implied_vol": iv,
                     "greeks": greeks,

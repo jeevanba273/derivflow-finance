@@ -180,7 +180,7 @@ class GreeksCalculator:
             theta=theta / 365,  # Convert to per-day
             vega=vega / 100,  # Convert to per 1% vol change
             rho=rho / 100,  # Convert to per 1% rate change
-            volga=volga / 100,  # Convert to per 1% vol change
+            volga=volga / 1e4,  # change in vega (per vol point) per vol point
             vanna=vanna / 100,  # Convert to per 1% vol change
             speed=speed,
             zomma=zomma / 100,

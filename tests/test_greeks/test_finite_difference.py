@@ -68,7 +68,7 @@ def _fd(bs_ref, S, T, sigma, q, ot):
     }
 
 
-GREEKS = ["delta", "gamma", "theta", "vega", "rho", "vanna", "speed", "zomma", "color"]
+GREEKS = ["delta", "gamma", "theta", "vega", "rho", "volga", "vanna", "speed", "zomma", "color"]
 
 
 @pytest.mark.parametrize("greek", GREEKS)

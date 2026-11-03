@@ -95,26 +95,39 @@ class VolatilitySurface:
         self.vol_data.append(vol_point)
         self.surface_fitted = False
 
-    def load_market_data(self, data: Any) -> None:
+    def load_market_data(self, data: Any) -> int:
         """
-        Load market volatility data in bulk
+        Load quotes in bulk and return how many were added.
 
         Parameters:
         -----------
-        data : pandas.DataFrame or List[Dict]
-            Market data with columns: strike, expiry, volatility
+        data : pandas.DataFrame or list of dict
+            Rows with 'strike', 'expiry' (years) and 'volatility', and
+            optionally 'market_price'. Other keys (e.g. 'option_type' from
+            :func:`~derivflow.volatility.implied_vol.implied_vol_from_chain` or
+            'volume' from the market data client) are ignored. Rows whose
+            volatility is missing, NaN or not positive are skipped.
         """
         if hasattr(data, "to_dict") and hasattr(data, "columns"):  # pandas DataFrame
-            for row in data.to_dict("records"):
-                self.add_volatility_point(
-                    strike=row["strike"],
-                    expiry=row["expiry"],
-                    volatility=row["volatility"],
-                    market_price=row.get("market_price"),
-                )
+            rows = data.to_dict("records")
         elif isinstance(data, list):
-            for point in data:
-                self.add_volatility_point(**point)
+            rows = data
+        else:
+            raise TypeError("data must be a pandas DataFrame or a list of dicts")
+        added = 0
+        for row in rows:
+            vol = row.get("volatility")
+            if vol is None or not np.isfinite(vol) or vol <= 0:
+                continue
+            price = row.get("market_price")
+            self.add_volatility_point(
+                strike=float(row["strike"]),
+                expiry=float(row["expiry"]),
+                volatility=float(vol),
+                market_price=None if price is None else float(price),
+            )
+            added += 1
+        return added
 
     def _prepare_data_arrays(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Prepare data for surface fitting"""

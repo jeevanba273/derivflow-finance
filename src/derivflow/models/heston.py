@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import scipy.stats as stats
+from scipy import integrate
 from scipy.optimize import minimize
 
 from .._numba_utils import HAS_NUMBA, njit, prange
@@ -42,6 +43,48 @@ def _heston_euler_final(S, r, dt, sqrt_dt, kappa, theta, sigma, v0, W1, W2, num_
             v = v_next
         final_prices[i] = s
     return final_prices
+
+
+def _heston_cf(u, T, params):
+    """Characteristic function of ln(S_T / F_T) (Albrecher et al. 2007 form)."""
+    v0, kappa, theta, sigma, rho = (
+        params.v0,
+        params.kappa,
+        params.theta,
+        params.sigma,
+        params.rho,
+    )
+    beta = kappa - rho * sigma * 1j * u
+    a = u**2 + 1j * u
+    d = np.sqrt(beta**2 + sigma**2 * a)
+    # beta - d computed without cancellation: (beta - d)(beta + d) = -sigma^2 a.
+    beta_minus_d = -(sigma**2) * a / (beta + d)
+    g = beta_minus_d / (beta + d)
+    e = np.exp(-d * T)
+    D = -a / (beta + d) * (1.0 - e) / (1.0 - g * e)
+    C = (
+        kappa
+        * theta
+        / sigma**2
+        * (beta_minus_d * T - 2.0 * (np.log1p(-g * e) - np.log1p(-g)))
+    )
+    return np.exp(C + D * v0)
+
+
+def heston_call_price(
+    S: float, K: float, T: float, r: float, q: float, params: "HestonParameters"
+) -> float:
+    """European call under Heston via the Lewis (2001) single integral."""
+    if T <= 0:
+        return max(S - K, 0.0)
+    k = np.log(S / K) + (r - q) * T
+
+    def integrand(u: float) -> float:
+        return (np.exp(1j * u * k) * _heston_cf(u - 0.5j, T, params)).real / (u * u + 0.25)
+
+    integral, _ = integrate.quad(integrand, 0.0, np.inf, limit=500, epsabs=1e-12, epsrel=1e-10)
+    price = S * np.exp(-q * T) - np.sqrt(S * K) * np.exp(-0.5 * (r + q) * T) / np.pi * integral
+    return max(float(price), 0.0)
 
 
 @dataclass
@@ -111,107 +154,45 @@ class HestonModel:
 
         # Check Feller condition
         if 2 * kappa * theta <= sigma**2:
-            warnings.warn("Feller condition violated: 2κθ ≤ σ². Volatility may reach zero.")
+            warnings.warn(
+                "Feller condition 2*kappa*theta > sigma**2 is violated; "
+                "the variance process can reach zero.",
+                stacklevel=2,
+            )
 
         self.params = HestonParameters(v0, kappa, theta, sigma, rho)
 
-    def _characteristic_function(self, u: complex, S: float, T: float, r: float) -> complex:
-        """
-        Heston characteristic function for analytical pricing
-
-        This is the heart of the Heston model - the characteristic function
-        that allows analytical pricing via Fourier inversion.
-        """
-        if self.params is None:
-            raise ValueError("Parameters not set")
-
-        v0, kappa, theta, sigma, rho = (
-            self.params.v0,
-            self.params.kappa,
-            self.params.theta,
-            self.params.sigma,
-            self.params.rho,
-        )
-
-        # Complex calculations
-        i = complex(0, 1)
-        d = np.sqrt((rho * sigma * u * i - kappa) ** 2 - sigma**2 * (2 * u * i - u**2))
-        g = (kappa - rho * sigma * u * i - d) / (kappa - rho * sigma * u * i + d)
-
-        # Handle numerical issues
-        if abs(g) >= 1:
-            g = 0.999 * np.sign(g.real)
-
-        # Exponential terms
-        exp_term = np.exp(-d * T)
-        C = r * u * i * T + (kappa * theta / sigma**2) * (
-            (kappa - rho * sigma * u * i - d) * T - 2 * np.log((1 - g * exp_term) / (1 - g))
-        )
-
-        D = (kappa - rho * sigma * u * i - d) / sigma**2 * (1 - exp_term) / (1 - g * exp_term)
-
-        # Characteristic function
-        return np.exp(C + D * v0 + i * u * np.log(S))
-
-    def _heston_price_fourier(
-        self, S: float, K: float, T: float, r: float, option_type: str = "call"
+    def analytic_price(
+        self,
+        S: float,
+        K: float,
+        T: float,
+        r: float,
+        option_type: str = "call",
+        q: float = 0.0,
     ) -> float:
         """
-        Price option using Fourier inversion of characteristic function
+        European option price under the Heston model by numerical integration.
 
-        Uses the Carr-Madan approach for efficient pricing.
+        Uses the single-integral representation of Lewis (2001),
+
+            C = S e^{-qT} - sqrt(S K) e^{-(r+q)T/2} / pi *
+                int_0^inf Re[e^{i u k} phi(u - i/2)] / (u^2 + 1/4) du,
+
+        with k = ln(S/K) + (r - q) T and phi the characteristic function of
+        ln(S_T / F_T), written in the "little Heston trap" form of Albrecher et
+        al. (2007), which has no branch-cut discontinuity in the complex
+        logarithm. Puts follow from put-call parity. The integral is evaluated
+        with adaptive quadrature (``scipy.integrate.quad``).
         """
         if self.params is None:
             raise ValueError("Parameters not set")
-
-        # Fourier inversion parameters
-        alpha = 1.5  # Dampening factor
-        eta = 0.25  # Grid spacing
-        N = 2**12  # Number of points
-
-        # Grid setup
-        lambda_vals = 2 * np.pi / (N * eta)
-        b = N * lambda_vals / 2
-
-        # Integration points
-        u = np.arange(0, N) * eta
-        v = np.arange(0, N) * lambda_vals - b
-
-        # Modified characteristic function
-        def psi(u_val):
-            return self._characteristic_function(u_val - (alpha + 1) * 1j, S, T, r) / (
-                alpha**2 + alpha - u_val**2 + 1j * (2 * alpha + 1) * u_val
-            )
-
-        # Calculate Fourier transform
-        x = np.log(K)
-        w = np.zeros(N, dtype=complex)
-
-        for i in range(N):
-            if i == 0:
-                w[i] = 0.5 * eta
-            elif i == N - 1:
-                w[i] = 0.5 * eta
-            else:
-                w[i] = eta
-
-        # Compute the sum
-        fft_input = np.exp(1j * b * u) * psi(u) * w * np.exp(1j * v[0] * u)
-        fft_result = np.fft.fft(fft_input)
-
-        # Extract price
-        call_prices = np.real(np.exp(-alpha * v) * fft_result / np.pi)
-        strikes = np.exp(v)
-
-        # Interpolate for exact strike
-        price_interp = np.interp(K, strikes, call_prices)
-        call_price = np.exp(-r * T) * price_interp
-
+        call = heston_call_price(S, K, T, r, q, self.params)
         if option_type.lower() == "call":
-            return max(call_price, 0)
-        else:  # put
-            put_price = call_price - S + K * np.exp(-r * T)
-            return max(put_price, 0)
+            return call
+        if option_type.lower() == "put":
+            return max(call - S * np.exp(-q * T) + K * np.exp(-r * T), 0.0)
+        raise ValueError("option_type must be 'call' or 'put'")
 
     def monte_carlo_price(
         self,
@@ -392,25 +373,26 @@ class HestonModel:
         T: float,
         r: float,
         option_type: str = "call",
-        method: str = "monte_carlo",
+        method: str = "analytic",
+        q: float = 0.0,
     ) -> HestonResult:
         """
-        Main interface for Heston option pricing
+        Price a European option under the current Heston parameters.
 
         Parameters:
         -----------
-        S : float
-            Current spot price
-        K : float
-            Strike price
+        S, K : float
+            Spot and strike.
         T : float
-            Time to expiry
-        r : float
-            Risk-free rate
+            Time to expiry in years.
+        r, q : float
+            Continuously compounded risk-free rate and dividend yield.
         option_type : str
             'call' or 'put'
         method : str
-            'monte_carlo' or 'fourier'
+            'analytic' (default; numerical integration, see
+            :meth:`analytic_price`; 'fourier' is accepted as an alias) or
+            'monte_carlo' (see :meth:`monte_carlo_price`).
 
         Returns:
         --------
@@ -420,13 +402,12 @@ class HestonModel:
         if self.params is None:
             raise ValueError("Model parameters not set")
 
-        if method.lower() == "monte_carlo":
+        method = method.lower()
+        if method in ("analytic", "fourier"):
+            return HestonResult(price=self.analytic_price(S, K, T, r, option_type, q))
+        if method == "monte_carlo":
             return self.monte_carlo_price(S, K, T, r, option_type)
-        elif method.lower() == "fourier":
-            price = self._heston_price_fourier(S, K, T, r, option_type)
-            return HestonResult(price=price)
-        else:
-            raise ValueError(f"Unknown method: {method}")
+        raise ValueError(f"Unknown method: {method}")
 
 
 if __name__ == "__main__":

@@ -36,3 +36,43 @@ def test_mc_approaches_black_scholes_low_vol_of_vol():
     res = model.monte_carlo_price(100, 100, 1.0, 0.05, "call", num_sims=100000, num_steps=252)
     bs = price_european_option(100, 100, 1.0, 0.05, 0.2, "call")
     assert res.price == pytest.approx(bs, abs=0.3)
+
+
+# Reference prices for the Heston model computed by Alan Lewis and used as
+# regression targets in QuantLib's Heston test suite. Parameters: S=100, T=1,
+# r=1%, q=2%, v0=0.04, kappa=4, theta=0.25, sigma=1, rho=-0.5 (European calls).
+LEWIS_CALLS = {
+    80: 26.774758743998854,
+    90: 20.933349000596710,
+    100: 16.070154917028834,
+    110: 12.132211516709845,
+    120: 9.024913483457836,
+}
+
+
+@pytest.mark.parametrize("K", sorted(LEWIS_CALLS))
+def test_analytic_matches_lewis_reference(K):
+    model = HestonModel()
+    model.set_parameters(v0=0.04, kappa=4.0, theta=0.25, sigma=1.0, rho=-0.5)
+    price = model.price_option(100.0, K, 1.0, 0.01, "call", method="analytic", q=0.02).price
+    assert price == pytest.approx(LEWIS_CALLS[K], abs=1e-8)
+
+
+@pytest.mark.parametrize("K", [70.0, 100.0, 140.0])
+@pytest.mark.parametrize("T", [0.05, 1.0, 5.0])
+def test_analytic_put_call_parity(K, T):
+    import numpy as np
+
+    model = HestonModel()
+    model.set_parameters(v0=0.05, kappa=1.5, theta=0.06, sigma=0.6, rho=-0.7)
+    c = model.price_option(100.0, K, T, 0.03, "call", method="analytic", q=0.01).price
+    p = model.price_option(100.0, K, T, 0.03, "put", method="analytic", q=0.01).price
+    assert c - p == pytest.approx(100 * np.exp(-0.01 * T) - K * np.exp(-0.03 * T), abs=1e-9)
+
+
+def test_analytic_tends_to_black_scholes_as_vol_of_vol_vanishes(bs_ref):
+    model = HestonModel()
+    model.set_parameters(v0=0.04, kappa=2.0, theta=0.04, sigma=1e-4, rho=0.0)
+    for K in (80.0, 100.0, 120.0):
+        price = model.price_option(100.0, K, 1.0, 0.05, "call", method="analytic").price
+        assert price == pytest.approx(bs_ref(100.0, K, 1.0, 0.05, 0.2, "call"), abs=1e-5)

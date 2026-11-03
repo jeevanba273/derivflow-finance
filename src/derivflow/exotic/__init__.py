@@ -14,17 +14,17 @@ from .barrier_options import BarrierOptionResult, BarrierOptions, BarrierType
 
 # Convenience exports
 __all__ = [
-    # Barrier Options
-    "BarrierOptions",
-    "BarrierType",
-    "BarrierOptionResult",
+    "AsianOptionResult",
     # Asian Options
     "AsianOptions",
     "AsianType",
     "AverageType",
-    "AsianOptionResult",
-    "price_asian_option",
+    "BarrierOptionResult",
+    # Barrier Options
+    "BarrierOptions",
+    "BarrierType",
     "compare_asian_types",
+    "price_asian_option",
     "price_barrier_option",
 ]
 

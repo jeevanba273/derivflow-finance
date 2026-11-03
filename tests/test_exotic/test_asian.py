@@ -112,3 +112,10 @@ def test_control_variate_estimate_is_unbiased(n):
     )
     combined_se = (cv.std_error**2 + plain.std_error**2) ** 0.5
     assert abs(cv.price - plain.price) < 4 * combined_se
+
+
+def test_continuous_arithmetic_average_is_rejected():
+    with pytest.raises(ValueError, match="continuous arithmetic"):
+        AsianOptions(num_sims=100).price(
+            100, 100, 1.0, 0.05, 0.2, asian_type="arithmetic", average_type="continuous"
+        )

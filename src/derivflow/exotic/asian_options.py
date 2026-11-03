@@ -1,13 +1,20 @@
 """
-DERIVFLOW-FINANCE: Asian Options Pricing Engine
-==============================================
+Average-price (Asian) options under Black-Scholes dynamics, no dividend yield.
 
-Professional-grade Asian (Average) options pricing with multiple methodologies:
-- Monte Carlo simulation for arithmetic average
-- Closed-form solutions for geometric average
-- Control variate techniques for variance reduction
-- Multiple averaging types and exercise styles
+The payoff is max(A - K, 0) for a call and max(K - A, 0) for a put, where A
+is the average of the underlying over the fixing dates. Discrete averaging
+uses n equally spaced fixings t_i = i T / n, i = 1..n; today's spot is not a
+fixing.
+
+- Geometric average: closed form, continuous (Kemna and Vorst 1990) or
+  discrete (lognormal moments of the geometric mean of the fixings).
+- Arithmetic average: Monte Carlo with exact GBM sampling at the fixings and,
+  by default, the discrete geometric option as a control variate (Kemna and
+  Vorst 1990; Glasserman 2003, section 4.1). The control's mean is the
+  closed form for the same fixing schedule, so the estimator is unbiased.
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
@@ -34,7 +41,9 @@ class AverageType(Enum):
 
 @dataclass
 class AsianOptionResult:
-    """Result container for Asian option pricing"""
+    """Asian option price. Monte Carlo results carry the standard error
+    (ddof=1), a 95% confidence interval and, with the control variate, the
+    fitted coefficient and the variance reduction ratio in ``convergence_info``."""
 
     price: float
     std_error: float | None = None
@@ -47,26 +56,16 @@ class AsianOptionResult:
 
 
 class AsianOptions:
-    """
-    Professional Asian (Average) options pricing engine
-
-    Supports multiple pricing methodologies:
-    - Analytical solutions for geometric average options
-    - Monte Carlo simulation for arithmetic average options
-    - Control variate techniques for enhanced accuracy
-    - Discrete and continuous averaging
-    """
+    """Asian option pricer; see the module docstring for the methods."""
 
     def __init__(self, num_sims: int = 100000, random_seed: int | None = None):
         """
-        Initialize Asian options pricing engine
-
         Parameters:
         -----------
         num_sims : int
-            Number of Monte Carlo simulations
+            Number of simulated paths for the Monte Carlo methods.
         random_seed : int, optional
-            Random seed for reproducible results
+            Seed of the engine's private random number generator.
         """
         if num_sims < 2:
             raise ValueError("num_sims must be at least 2")
@@ -196,36 +195,40 @@ class AsianOptions:
         use_control_variate: bool = True,
     ) -> AsianOptionResult:
         """
-        Price arithmetic average Asian option using Monte Carlo simulation
+        Monte Carlo price of an arithmetic-average option with ``num_steps``
+        fixings.
+
+        With ``use_control_variate=True`` the estimator is
+        mean(Y - beta (G - E[G])), where Y and G are the discounted arithmetic
+        and geometric payoffs on the same paths, E[G] is the discrete
+        geometric closed form and beta = cov(Y, G) / var(G) is estimated from
+        the sample.
 
         Parameters:
         -----------
-        S : float
-            Current spot price
-        K : float
-            Strike price
+        S, K : float
+            Spot and strike.
         T : float
-            Time to expiry
+            Time to expiry in years.
         r : float
-            Risk-free rate
+            Continuously compounded risk-free rate.
         sigma : float
-            Volatility
+            Annualised volatility.
         option_type : str
             'call' or 'put'
         num_steps : int
-            Number of time steps for averaging
+            Number of fixings.
         use_control_variate : bool
-            Whether to use geometric Asian as control variate
+            Use the geometric option as a control variate.
 
         Returns:
         --------
         AsianOptionResult
-            Pricing result with Monte Carlo estimates
         """
         check_live_inputs(S, K, T, sigma)
         check_option_type(option_type)
         # Generate paths
-        final_prices, arithmetic_avg, geometric_avg = self._generate_asian_paths(
+        _final_prices, arithmetic_avg, geometric_avg = self._generate_asian_paths(
             S, T, r, sigma, num_steps
         )
 
@@ -322,13 +325,12 @@ class AsianOptions:
         option_type: str = "call",
         num_steps: int = 252,
     ) -> AsianOptionResult:
-        """
-        Price geometric average Asian option using Monte Carlo (for verification)
-        """
+        """Monte Carlo price of a geometric-average option with ``num_steps``
+        fixings (used to check the closed form)."""
         check_live_inputs(S, K, T, sigma)
         check_option_type(option_type)
         # Generate paths
-        final_prices, arithmetic_avg, geometric_avg = self._generate_asian_paths(
+        _final_prices, _arithmetic_avg, geometric_avg = self._generate_asian_paths(
             S, T, r, sigma, num_steps
         )
 
@@ -373,47 +375,38 @@ class AsianOptions:
         **kwargs,
     ) -> AsianOptionResult:
         """
-        Main pricing interface for Asian options
+        Price an Asian option.
 
         Parameters:
         -----------
-        S : float
-            Current spot price
-        K : float
-            Strike price
-        T : float
-            Time to expiry
-        r : float
-            Risk-free rate
-        sigma : float
-            Volatility
-        option_type : str
-            'call' or 'put'
+        S, K, T, r, sigma, option_type
+            As in :meth:`price_arithmetic_asian_mc`.
         asian_type : str
-            'arithmetic' or 'geometric'
+            'arithmetic' or 'geometric'.
         average_type : str
-            'discrete' or 'continuous'
+            'discrete' (``num_steps`` fixings) or 'continuous' (geometric
+            closed form only).
         method : str
-            'auto', 'analytical', 'monte_carlo'
+            'auto' (closed form for geometric, Monte Carlo for arithmetic),
+            'analytical' or 'monte_carlo'.
         num_steps : int
-            Number of averaging points
+            Number of fixings for discrete averaging.
         **kwargs
-            Additional method-specific parameters
+            ``use_control_variate`` for the arithmetic Monte Carlo.
 
         Returns:
         --------
         AsianOptionResult
-            Complete pricing result
         """
-        # Input validation
-        if T <= 0:
-            raise ValueError("Time to expiry must be positive")
-        if sigma <= 0:
-            raise ValueError("Volatility must be positive")
-        if S <= 0:
-            raise ValueError("Spot price must be positive")
-        if K <= 0:
-            raise ValueError("Strike price must be positive")
+        check_live_inputs(S, K, T, sigma)
+        check_option_type(option_type)
+        if average_type not in ("discrete", "continuous"):
+            raise ValueError("average_type must be 'discrete' or 'continuous'")
+        if asian_type == "arithmetic" and average_type == "continuous":
+            raise ValueError(
+                "continuous arithmetic averaging has no closed form here; use "
+                "average_type='discrete' with enough fixings (num_steps)"
+            )
 
         # Method selection logic
         if method == "auto":
@@ -448,12 +441,8 @@ class AsianOptions:
         asian_type: str = "arithmetic",
     ) -> dict[str, AsianOptionResult]:
         """
-        Compare different pricing methods for Asian options
-
-        Returns:
-        --------
-        Dict[str, AsianOptionResult]
-            Comparison of different methods
+        Geometric: closed form vs Monte Carlo. Arithmetic: Monte Carlo with
+        and without the control variate.
         """
         results = {}
 
@@ -520,19 +509,20 @@ class AsianOptions:
         bump_size: float = 0.01,
     ) -> dict[str, float]:
         """
-        Calculate sensitivities (Greeks) for Asian options using finite differences
+        Finite-difference sensitivities of :meth:`price`.
+
+        Central differences with relative bumps for spot (delta and gamma)
+        and volatility (vega, per unit of volatility) and absolute bumps for
+        the rate (rho, per unit of rate) and time (theta, -dV/dT per year).
+        All revaluations use the same random numbers (common random numbers),
+        so Monte Carlo noise largely cancels.
 
         Parameters:
         -----------
         param : str
-            Parameter to bump ('spot', 'volatility', 'rate', 'time')
+            'spot', 'volatility', 'rate' or 'time'.
         bump_size : float
-            Size of the bump for finite differences
-
-        Returns:
-        --------
-        Dict[str, float]
-            Sensitivity measures
+            Relative bump for spot and volatility, absolute for rate and time.
         """
         # Common random numbers: every revaluation below reuses the same draws,
         # so Monte Carlo noise largely cancels in the differences.
@@ -578,14 +568,9 @@ def price_asian_option(
     option_type: str = "call",
     asian_type: str = "arithmetic",
 ) -> float:
-    """
-    Convenience function to price Asian option
-
-    Returns:
-    --------
-    float
-        Option price
-    """
+    """Price of an Asian option with :meth:`AsianOptions.price` defaults
+    (252 fixings; arithmetic by Monte Carlo with a control variate, so the
+    value is a random estimate)."""
     asian_engine = AsianOptions()
     result = asian_engine.price(S, K, T, r, sigma, option_type, asian_type)
     return result.price
@@ -594,9 +579,8 @@ def price_asian_option(
 def compare_asian_types(
     S: float, K: float, T: float, r: float, sigma: float, option_type: str = "call"
 ) -> dict[str, float]:
-    """
-    Compare arithmetic vs geometric Asian option prices
-    """
+    """Arithmetic (Monte Carlo) and geometric (closed form) prices with 252
+    fixings and their difference."""
     asian_engine = AsianOptions()
 
     arithmetic_result = asian_engine.price(S, K, T, r, sigma, option_type, "arithmetic")
@@ -609,89 +593,3 @@ def compare_asian_types(
         "relative_difference": (arithmetic_result.price - geometric_result.price)
         / geometric_result.price,
     }
-
-
-# Example usage and testing
-if __name__ == "__main__":
-    print("DERIVFLOW-FINANCE: Asian Options Pricing Engine")
-    print("=" * 70)
-
-    # Initialize Asian options engine
-    asian_engine = AsianOptions(num_sims=50000, random_seed=42)
-
-    # Test parameters
-    S, K, T, r, sigma = 100, 100, 0.25, 0.05, 0.3
-
-    print("Asian Options Analysis:")
-    print(f"   Spot: ${S}, Strike: ${K}, Time: {T:.2f}y, Rate: {r:.1%}, Vol: {sigma:.1%}")
-    print("-" * 70)
-
-    try:
-        # Test geometric Asian (analytical)
-        print("1. GEOMETRIC ASIAN OPTIONS (Analytical)")
-        print("-" * 45)
-
-        geom_call = asian_engine.price(S, K, T, r, sigma, "call", "geometric", method="analytical")
-        geom_put = asian_engine.price(S, K, T, r, sigma, "put", "geometric", method="analytical")
-
-        print(f"Geometric Call:  ${geom_call.price:.4f}")
-        print(f"Geometric Put:   ${geom_put.price:.4f}")
-
-        # Test arithmetic Asian (Monte Carlo)
-        print("\n2. ARITHMETIC ASIAN OPTIONS (Monte Carlo)")
-        print("-" * 50)
-
-        arith_call = asian_engine.price(
-            S, K, T, r, sigma, "call", "arithmetic", method="monte_carlo"
-        )
-        arith_put = asian_engine.price(S, K, T, r, sigma, "put", "arithmetic", method="monte_carlo")
-
-        print(f"Arithmetic Call: ${arith_call.price:.4f} ± {arith_call.std_error:.4f}")
-        print(f"Arithmetic Put:  ${arith_put.price:.4f} ± {arith_put.std_error:.4f}")
-
-        if arith_call.convergence_info and arith_call.convergence_info.get("control_variate_used"):
-            cv_info = arith_call.convergence_info
-            print(f"Control Variate: Used (VR: {cv_info['variance_reduction_ratio']:.2f}x)")
-
-        # Compare types
-        print("\n3. COMPARISON ANALYSIS")
-        print("-" * 30)
-
-        comparison = compare_asian_types(S, K, T, r, sigma, "call")
-        print(f"Arithmetic Call: ${comparison['arithmetic_asian']:.4f}")
-        print(f"Geometric Call:  ${comparison['geometric_asian']:.4f}")
-        print(f"Price Difference: ${comparison['price_difference']:.4f}")
-        print(f"Relative Diff:   {comparison['relative_difference']:.2%}")
-
-        # Sensitivity analysis
-        print("\n4. GREEKS ANALYSIS (Arithmetic Asian Call)")
-        print("-" * 50)
-
-        try:
-            delta_gamma = asian_engine.sensitivity_analysis(
-                S, K, T, r, sigma, "call", "arithmetic", "spot"
-            )
-            vega_result = asian_engine.sensitivity_analysis(
-                S, K, T, r, sigma, "call", "arithmetic", "volatility"
-            )
-
-            print(f"Delta: {delta_gamma['delta']:.4f}")
-            print(f"Gamma: {delta_gamma['gamma']:.6f}")
-            print(f"Vega:  {vega_result['vega']:.4f}")
-        except Exception:
-            print("Greeks calculation: Limited (MC noise)")
-
-        print("\nASIAN OPTIONS ENGINE STATUS:")
-        print("-" * 40)
-        print("Geometric Asian: Analytical pricing")
-        print("Arithmetic Asian: Monte Carlo with control variates")
-        print("Variance reduction: Working")
-        print("Confidence intervals: Available")
-        print("Sensitivity analysis: Available")
-
-        print("\nASIAN OPTIONS MODULE COMPLETE!")
-        print("Professional-grade path-dependent option pricing ready!")
-
-    except Exception as e:
-        print(f"Error: {e!s}")
-        print("Check parameters and dependencies")

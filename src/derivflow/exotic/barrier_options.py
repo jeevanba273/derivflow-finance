@@ -1,13 +1,23 @@
 """
-DERIVFLOW-FINANCE: Barrier Options Pricing
-=========================================
+Single-barrier European options (up/down, in/out, calls and puts, no rebate).
 
-Complete implementation of barrier options with all variants:
-- Knock-In/Knock-Out barriers
-- Up/Down barriers
-- Single and double barriers
-- Analytical and Monte Carlo pricing
+- :meth:`BarrierOptions.analytical_price`: closed form for a continuously
+  monitored barrier under Black-Scholes dynamics with no dividend yield
+  (Merton 1973; Reiner and Rubinstein 1991), written with the A, B, C, D
+  building blocks of Haug, The Complete Guide to Option Pricing Formulas
+  (2nd ed., 2007), section 4.17.1. Matches QuantLib's AnalyticBarrierEngine
+  to about 1e-14 in the validation tests.
+- :meth:`BarrierOptions.monte_carlo_price`: exact GBM paths monitored at
+  ``num_steps`` equally spaced dates, i.e. a discretely monitored barrier.
+  Its price differs from the continuous closed form by the discrete
+  monitoring bias; Broadie, Glasserman and Kou (1997) show the discrete
+  price is close to the continuous one with the barrier shifted by
+  exp(+-0.5826 sigma sqrt(dt)) away from the spot.
+
+Knock-in plus knock-out equals the vanilla option (in-out parity).
 """
+
+from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
@@ -30,35 +40,31 @@ class BarrierType(Enum):
 
 @dataclass
 class BarrierOptionResult:
-    """Result container for barrier option pricing"""
+    """Barrier option price.
+
+    ``probability_survival`` is the risk-neutral probability that the barrier
+    is not touched before expiry (continuous monitoring for the closed form,
+    the simulated frequency for Monte Carlo). ``std_error`` is set for Monte
+    Carlo prices only.
+    """
 
     price: float
-    delta: float | None = None
-    gamma: float | None = None
-    theta: float | None = None
-    vega: float | None = None
-    barrier_delta: float | None = None  # Sensitivity to barrier level
-    probability_survival: float | None = None  # Probability of not hitting barrier
-    std_error: float | None = None  # Monte Carlo standard error (None for closed form)
+    probability_survival: float | None = None
+    std_error: float | None = None
 
 
 class BarrierOptions:
     """
-    Advanced barrier options pricing engine
-
-    Implements both analytical solutions (where available) and Monte Carlo
-    simulation for all barrier option variants. Includes Greeks calculation
-    and comprehensive risk analytics.
+    Pricer for single-barrier European options; see the module docstring for
+    the methods and their assumptions.
     """
 
     def __init__(self, random_seed: int | None = None):
         """
-        Initialize barrier options pricer
-
         Parameters:
         -----------
         random_seed : int, optional
-            Random seed for reproducible Monte Carlo results
+            Seed of the generator used by :meth:`monte_carlo_price`.
         """
         # Private generator: NumPy's global random state is never touched.
         self.rng = np.random.default_rng(random_seed)
@@ -101,34 +107,32 @@ class BarrierOptions:
         option_type: str = "call",
     ) -> BarrierOptionResult:
         """
-        Calculate barrier option price using analytical formulas
+        Closed-form price of a continuously monitored barrier option.
 
-        Uses closed-form solutions based on the reflection principle
-        and method of images for European barrier options.
+        Valid for Black-Scholes dynamics without dividends and zero rebate.
+        If the barrier is already breached at t = 0, a knock-in is worth the
+        vanilla option and a knock-out is worth 0. At T <= 0 see
+        :meth:`_handle_expiry`.
 
         Parameters:
         -----------
-        S : float
-            Current spot price
-        K : float
-            Strike price
-        H : float
-            Barrier level
+        S, K, H : float
+            Spot, strike and barrier level.
         T : float
-            Time to expiry
+            Time to expiry in years.
         r : float
-            Risk-free rate
+            Continuously compounded risk-free rate.
         sigma : float
-            Volatility
+            Annualised volatility.
         barrier_type : str
-            Type of barrier ('up_and_out', 'up_and_in', 'down_and_out', 'down_and_in')
+            'up_and_out', 'up_and_in', 'down_and_out' or 'down_and_in'.
         option_type : str
             'call' or 'put'
 
         Returns:
         --------
         BarrierOptionResult
-            Complete pricing and risk results
+            price and probability_survival.
         """
         self._validate_barrier_parameters(S, K, H, barrier_type, option_type, T, sigma)
 
@@ -229,7 +233,9 @@ class BarrierOptions:
     def _calculate_survival_probability(
         self, S: float, H: float, T: float, r: float, sigma: float, barrier_type: str
     ) -> float:
-        """Calculate probability that barrier is not hit"""
+        """Risk-neutral probability that a continuously monitored barrier H is not
+        touched before T, from the reflection principle for X_t = ln(S_t / S)
+        with drift mu = r - sigma^2 / 2."""
         mu = r - 0.5 * sigma**2
 
         if barrier_type.lower() in ["down_and_out", "down_and_in"]:
@@ -270,35 +276,13 @@ class BarrierOptions:
         num_steps: int = 252,
     ) -> BarrierOptionResult:
         """
-        Price barrier option using Monte Carlo simulation
+        Monte Carlo price with the barrier monitored at ``num_steps`` dates.
 
-        Parameters:
-        -----------
-        S : float
-            Current spot price
-        K : float
-            Strike price
-        H : float
-            Barrier level
-        T : float
-            Time to expiry
-        r : float
-            Risk-free rate
-        sigma : float
-            Volatility
-        barrier_type : str
-            Type of barrier
-        option_type : str
-            'call' or 'put'
-        num_sims : int
-            Number of Monte Carlo simulations
-        num_steps : int
-            Number of time steps per simulation
-
-        Returns:
-        --------
-        BarrierOptionResult
-            Monte Carlo pricing results
+        Paths are exact GBM at t_i = i T / num_steps; a path is knocked when
+        any S(t_i) is on or beyond H. This is a discretely monitored barrier,
+        so the price is not the continuous closed form (see the module
+        docstring). Returns the price, its standard error (ddof=1) and the
+        simulated no-touch frequency.
         """
         self._validate_barrier_parameters(S, K, H, barrier_type, option_type, T, sigma)
         if T <= 0:
@@ -356,21 +340,16 @@ class BarrierOptions:
     def _handle_expiry(
         self, S: float, K: float, H: float, barrier_type: str, option_type: str
     ) -> BarrierOptionResult:
-        """Handle barrier option at expiry"""
-        # Check if barrier was hit (assume it wasn't for simplicity at expiry)
-        if option_type.lower() == "call":
-            payoff = max(S - K, 0)
-        else:
-            payoff = max(K - S, 0)
-
-        # For knock-out options, if we're at expiry and barrier wasn't hit, pay out
-        # For knock-in options, if barrier wasn't hit, no payoff
-        if "out" in barrier_type.lower():
-            price = payoff
-        else:  # knock-in
-            price = 0  # Assume barrier wasn't hit
-
-        return BarrierOptionResult(price=price, probability_survival=1.0)
+        """Value at expiry. The path history is unknown, so the barrier counts as
+        touched only if the current spot is on or beyond it."""
+        payoff = max(S - K, 0.0) if option_type.lower() == "call" else max(K - S, 0.0)
+        bt = barrier_type.lower()
+        touched = S <= H if bt.startswith("down") else S >= H
+        knocked_in = bt.endswith("in")
+        alive = touched if knocked_in else not touched
+        return BarrierOptionResult(
+            price=payoff if alive else 0.0, probability_survival=0.0 if touched else 1.0
+        )
 
     def price(
         self,
@@ -385,33 +364,8 @@ class BarrierOptions:
         method: str = "analytical",
     ) -> BarrierOptionResult:
         """
-        Main interface for barrier option pricing
-
-        Parameters:
-        -----------
-        S : float
-            Current spot price
-        K : float
-            Strike price
-        H : float
-            Barrier level
-        T : float
-            Time to expiry
-        r : float
-            Risk-free rate
-        sigma : float
-            Volatility
-        barrier_type : str
-            'up_and_out', 'up_and_in', 'down_and_out', 'down_and_in'
-        option_type : str
-            'call' or 'put'
-        method : str
-            'analytical' or 'monte_carlo'
-
-        Returns:
-        --------
-        BarrierOptionResult
-            Complete pricing results
+        Price with ``method='analytical'`` (continuous barrier, default) or
+        ``'monte_carlo'`` (discrete monitoring, 100,000 paths x 252 dates).
         """
         if method.lower() == "analytical":
             return self.analytical_price(S, K, H, T, r, sigma, barrier_type, option_type)
@@ -432,12 +386,8 @@ class BarrierOptions:
         option_type: str = "call",
     ) -> dict[str, BarrierOptionResult]:
         """
-        Compare analytical vs Monte Carlo pricing
-
-        Returns:
-        --------
-        Dict[str, BarrierOptionResult]
-            Results from both methods
+        Closed form and Monte Carlo side by side. The two differ by the
+        discrete-monitoring bias as well as by Monte Carlo error.
         """
         results = {}
 
@@ -456,84 +406,3 @@ class BarrierOptions:
             results["monte_carlo"] = f"Error: {e!s}"
 
         return results
-
-
-if __name__ == "__main__":
-    # Example usage and testing
-    print("DERIVFLOW-FINANCE: Barrier Options Pricing")
-    print("=" * 60)
-
-    # Test parameters
-    S, K, T, r, sigma = 100, 105, 0.25, 0.05, 0.3
-    H_down, H_up = 95, 115  # Down and up barriers
-
-    print("Barrier Options Analysis:")
-    print(f"   Spot: ${S} | Strike: ${K} | Time: {T} years")
-    print(f"   Rate: {r:.1%} | Vol: {sigma:.1%}")
-    print(f"   Down Barrier: ${H_down} | Up Barrier: ${H_up}")
-    print("-" * 60)
-
-    # Initialize pricer
-    barrier_pricer = BarrierOptions(random_seed=42)
-
-    # Test different barrier types
-    barrier_types = ["down_and_out", "down_and_in", "up_and_out", "up_and_in"]
-
-    print(f"{'Barrier Type':<15} {'Method':<12} {'Price':<8} {'Survival %':<10}")
-    print("-" * 50)
-
-    for barrier_type in barrier_types:
-        # Choose appropriate barrier level
-        H = H_down if "down" in barrier_type else H_up
-
-        # Compare analytical vs Monte Carlo
-        comparison = barrier_pricer.compare_methods(S, K, H, T, r, sigma, barrier_type, "call")
-
-        for method, result in comparison.items():
-            if isinstance(result, str):  # Error case
-                print(f"{barrier_type:<15} {method:<12} {'ERROR':<8} {'-':<10}")
-            else:
-                survival_pct = (
-                    result.probability_survival * 100 if result.probability_survival else 0
-                )
-                print(
-                    f"{barrier_type:<15} {method:<12} ${result.price:<7.3f} {survival_pct:<9.1f}%"
-                )
-
-    print("\n" + "-" * 60)
-    print("DETAILED ANALYSIS: Down-and-Out Call")
-    print("-" * 60)
-
-    # Detailed analysis of one option
-    detailed_result = barrier_pricer.price(
-        S=100,
-        K=105,
-        H=95,
-        T=0.25,
-        r=0.05,
-        sigma=0.3,
-        barrier_type="down_and_out",
-        option_type="call",
-        method="analytical",
-    )
-
-    print(f"Option Price:           ${detailed_result.price:.4f}")
-    print(f"Survival Probability:   {detailed_result.probability_survival:.2%}")
-    print(f"Barrier Level:          ${H_down}")
-    print(f"Distance to Barrier:    {(S - H_down) / S:.1%}")
-
-    # Compare to vanilla option (using simple Black-Scholes)
-    import scipy.stats as stats
-
-    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
-    d2 = d1 - sigma * np.sqrt(T)
-    vanilla_price = S * stats.norm.cdf(d1) - K * np.exp(-r * T) * stats.norm.cdf(d2)
-    discount = (vanilla_price - detailed_result.price) / vanilla_price
-
-    print(f"Vanilla Option Price:   ${vanilla_price:.4f}")
-    print(f"Barrier Discount:       {discount:.1%}")
-
-    print("\nBarrier Options Analysis Complete!")
-    print("All barrier types priced successfully")
-    print("Analytical and Monte Carlo methods working")
-    print("Survival probabilities calculated")

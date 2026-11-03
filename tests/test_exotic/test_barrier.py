@@ -148,3 +148,16 @@ def test_price_barrier_option_convenience_function():
     assert price_barrier_option(100, 100, 90, 1.0, 0.05, 0.2, "down_and_out") == pytest.approx(
         _price("down_and_out", 90), abs=1e-14
     )
+
+
+def test_at_expiry_a_spot_beyond_the_barrier_counts_as_touched():
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        # Down barrier at 90 and spot 85 at expiry: knocked out / knocked in.
+        assert barrier.price(85, 80, 90, 0.0, 0.05, 0.2, "down_and_out", "call").price == 0.0
+        assert barrier.price(85, 80, 90, 0.0, 0.05, 0.2, "down_and_in", "call").price == 5.0
+    # Spot above the down barrier: knock-out pays, knock-in does not.
+    assert barrier.price(105, 100, 90, 0.0, 0.05, 0.2, "down_and_out", "call").price == 5.0
+    assert barrier.price(105, 100, 90, 0.0, 0.05, 0.2, "down_and_in", "call").price == 0.0

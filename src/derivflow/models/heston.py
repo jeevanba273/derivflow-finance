@@ -11,38 +11,14 @@ Complete implementation of the Heston model with:
 
 import warnings
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import scipy.stats as stats
 from scipy import integrate
 from scipy.optimize import minimize
+from scipy.special import ndtri
 
-from .._numba_utils import HAS_NUMBA, njit, prange
-
-
-@njit(cache=True, parallel=True)
-def _heston_euler_final(S, r, dt, sqrt_dt, kappa, theta, sigma, v0, W1, W2, num_sims, num_steps):
-    """
-    Simulate Heston paths with the Euler-Maruyama scheme and return only the
-    terminal asset prices. Path-recursive in the variance process, so this is a
-    genuine per-path loop (not vectorizable via cumsum). Pre-generated shocks
-    W1/W2 are passed in so results are identical to the numpy fallback for a
-    given seed; keeping only scalars per path avoids materializing the full
-    (num_sims, num_steps+1) matrices.
-    """
-    final_prices = np.empty(num_sims)
-    for i in prange(num_sims):
-        s = S
-        v = v0
-        for t in range(num_steps):
-            v_pos = v if v > 0.0 else 0.0
-            v_next = v + kappa * (theta - v) * dt + sigma * np.sqrt(v_pos) * sqrt_dt * W2[i, t]
-            if v_next < 0.0001:
-                v_next = 0.0001
-            s = s * np.exp((r - 0.5 * v) * dt + np.sqrt(v_pos) * sqrt_dt * W1[i, t])
-            v = v_next
-        final_prices[i] = s
-    return final_prices
 
 
 def _heston_cf(u, T, params):
@@ -100,15 +76,13 @@ class HestonParameters:
 
 @dataclass
 class HestonResult:
-    """Heston pricing result"""
+    """Heston pricing result. Monte Carlo prices also carry their standard error
+    and a 95% confidence interval (price +- 1.96 standard errors)."""
 
     price: float
-    delta: float | None = None
-    gamma: float | None = None
-    vega: float | None = None
-    theta: float | None = None
-    volga: float | None = None
-    vanna: float | None = None
+    std_error: float | None = None
+    confidence_interval: tuple[float, float] | None = None
+    num_simulations: int | None = None
 
 
 class HestonModel:
@@ -201,66 +175,106 @@ class HestonModel:
         T: float,
         r: float,
         option_type: str = "call",
-        num_sims: int = 100000,
-        num_steps: int = 252,
+        num_sims: int = 100_000,
+        num_steps: int = 100,
+        q: float = 0.0,
+        scheme: str = "qe",
+        random_seed: int | None = None,
     ) -> HestonResult:
         """
-        Price option using Monte Carlo simulation
+        Price a European option by simulating the Heston model.
 
-        Simulates the Heston stochastic volatility process using
-        the Euler-Maruyama scheme with variance reduction techniques.
+        Schemes:
+
+        - ``'qe'`` (default): the quadratic-exponential scheme of Andersen
+          (2008) for the variance, with the log-price discretised as in his
+          eq. (33) (gamma1 = gamma2 = 1/2). It stays accurate with few time
+          steps when the Feller condition fails.
+        - ``'euler'``: full-truncation Euler (Lord, Koekkoek and van Dijk,
+          2010): negative variances are replaced by zero in the drift and
+          diffusion of both processes.
+
+        The paths are simulated one time step at a time, so memory use is
+        O(num_sims). Returns the discounted mean payoff, its standard error
+        (sample standard deviation / sqrt(num_sims)) and a 95% confidence
+        interval.
         """
         if self.params is None:
             raise ValueError("Parameters not set")
+        if num_sims < 2 or num_steps < 1:
+            raise ValueError("num_sims must be >= 2 and num_steps >= 1")
+        if T <= 0:
+            raise ValueError("T must be positive")
 
-        v0, kappa, theta, sigma, rho = (
-            self.params.v0,
-            self.params.kappa,
-            self.params.theta,
-            self.params.sigma,
-            self.params.rho,
-        )
-
+        p = self.params
+        v0, kappa, theta, sigma, rho = p.v0, p.kappa, p.theta, p.sigma, p.rho
+        rng = np.random.default_rng(random_seed)
         dt = T / num_steps
-        sqrt_dt = np.sqrt(dt)
+        x = np.full(num_sims, np.log(S))
+        v = np.full(num_sims, float(v0))
 
-        # Generate correlated random numbers (kept in numpy so a fixed seed is
-        # reproducible regardless of whether the numba kernel is used)
-        Z1 = np.random.standard_normal((num_sims, num_steps))
-        Z2 = np.random.standard_normal((num_sims, num_steps))
-        W1 = Z1
-        W2 = rho * Z1 + np.sqrt(1 - rho**2) * Z2
-
-        if HAS_NUMBA:
-            # JIT kernel: path-recursive variance process, returns terminal prices
-            final_prices = _heston_euler_final(
-                S, r, dt, sqrt_dt, kappa, theta, sigma, v0, W1, W2, num_sims, num_steps
-            )
-        else:
-            # Vectorized-over-sims fallback (identical recurrence, only current
-            # state vectors retained to avoid the full path matrices)
-            s = np.full(num_sims, float(S))
-            v = np.full(num_sims, float(v0))
-            for t in range(num_steps):
-                v_pos = np.maximum(v, 0.0)
-                v_next = np.maximum(
-                    v + kappa * (theta - v) * dt + sigma * np.sqrt(v_pos) * sqrt_dt * W2[:, t],
-                    0.0001,
+        scheme = scheme.lower()
+        if scheme == "qe":
+            ek = np.exp(-kappa * dt)
+            k0 = -rho * kappa * theta * dt / sigma
+            k1 = 0.5 * dt * (kappa * rho / sigma - 0.5) - rho / sigma
+            k2 = 0.5 * dt * (kappa * rho / sigma - 0.5) + rho / sigma
+            k3 = 0.5 * dt * (1.0 - rho**2)
+            psi_c = 1.5
+            for _ in range(num_steps):
+                mean = theta + (v - theta) * ek
+                var = v * sigma**2 * ek * (1 - ek) / kappa + theta * sigma**2 * (1 - ek) ** 2 / (
+                    2 * kappa
                 )
-                s = s * np.exp((r - 0.5 * v) * dt + np.sqrt(v_pos) * sqrt_dt * W1[:, t])
+                psi = var / mean**2
+                u = rng.random(num_sims)
+                z = rng.standard_normal(num_sims)
+                v_next = np.empty(num_sims)
+                quad = psi <= psi_c
+                inv = 2.0 / psi[quad]
+                b2 = inv - 1.0 + np.sqrt(inv) * np.sqrt(inv - 1.0)
+                a = mean[quad] / (1.0 + b2)
+                v_next[quad] = a * (np.sqrt(b2) + ndtri(u[quad])) ** 2
+                expo = ~quad
+                p_mass = (psi[expo] - 1.0) / (psi[expo] + 1.0)
+                beta = (1.0 - p_mass) / mean[expo]
+                u_e = u[expo]
+                v_next[expo] = np.where(
+                    u_e <= p_mass,
+                    0.0,
+                    np.log((1.0 - p_mass) / np.maximum(1.0 - u_e, 1e-300)) / beta,
+                )
+                x += (r - q) * dt + k0 + k1 * v + k2 * v_next + np.sqrt(k3 * (v + v_next)) * z
                 v = v_next
-            final_prices = s
-
-        if option_type.lower() == "call":
-            payoffs = np.maximum(final_prices - K, 0)
+        elif scheme == "euler":
+            sqrt_dt = np.sqrt(dt)
+            rho_c = np.sqrt(1.0 - rho**2)
+            for _ in range(num_steps):
+                z1 = rng.standard_normal(num_sims)
+                z2 = rho * z1 + rho_c * rng.standard_normal(num_sims)
+                v_pos = np.maximum(v, 0.0)
+                sqrt_v = np.sqrt(v_pos)
+                x += (r - q - 0.5 * v_pos) * dt + sqrt_v * sqrt_dt * z1
+                v += kappa * (theta - v_pos) * dt + sigma * sqrt_v * sqrt_dt * z2
         else:
-            payoffs = np.maximum(K - final_prices, 0)
+            raise ValueError("scheme must be 'qe' or 'euler'")
 
-        # Discount and calculate price
-        discounted_payoffs = payoffs * np.exp(-r * T)
-        price = np.mean(discounted_payoffs)
-
-        return HestonResult(price=price)
+        s_t = np.exp(x)
+        if option_type.lower() == "call":
+            payoffs = np.maximum(s_t - K, 0.0)
+        elif option_type.lower() == "put":
+            payoffs = np.maximum(K - s_t, 0.0)
+        else:
+            raise ValueError("option_type must be 'call' or 'put'")
+        discounted = np.exp(-r * T) * payoffs
+        price = float(discounted.mean())
+        std_error = float(discounted.std(ddof=1) / np.sqrt(num_sims))
+        return HestonResult(
+            price=price,
+            std_error=std_error,
+            confidence_interval=(price - 1.96 * std_error, price + 1.96 * std_error),
+            num_simulations=num_sims,
+        )
 
     def calibrate_to_market(self, market_data: list[dict], S: float, r: float) -> dict:
         """
@@ -375,6 +389,7 @@ class HestonModel:
         option_type: str = "call",
         method: str = "analytic",
         q: float = 0.0,
+        **mc_kwargs: Any,
     ) -> HestonResult:
         """
         Price a European option under the current Heston parameters.
@@ -392,7 +407,8 @@ class HestonModel:
         method : str
             'analytic' (default; numerical integration, see
             :meth:`analytic_price`; 'fourier' is accepted as an alias) or
-            'monte_carlo' (see :meth:`monte_carlo_price`).
+            'monte_carlo' (see :meth:`monte_carlo_price`; extra keyword
+            arguments such as ``num_sims`` or ``random_seed`` are passed on).
 
         Returns:
         --------
@@ -406,7 +422,7 @@ class HestonModel:
         if method in ("analytic", "fourier"):
             return HestonResult(price=self.analytic_price(S, K, T, r, option_type, q))
         if method == "monte_carlo":
-            return self.monte_carlo_price(S, K, T, r, option_type)
+            return self.monte_carlo_price(S, K, T, r, option_type, q=q, **mc_kwargs)
         raise ValueError(f"Unknown method: {method}")
 
 

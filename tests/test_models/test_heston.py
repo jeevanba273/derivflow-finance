@@ -76,3 +76,46 @@ def test_analytic_tends_to_black_scholes_as_vol_of_vol_vanishes(bs_ref):
     for K in (80.0, 100.0, 120.0):
         price = model.price_option(100.0, K, 1.0, 0.05, "call", method="analytic").price
         assert price == pytest.approx(bs_ref(100.0, K, 1.0, 0.05, 0.2, "call"), abs=1e-5)
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        (0.04, 2.0, 0.04, 0.3, -0.7),  # Feller condition holds
+        (0.04, 1.0, 0.04, 0.9, -0.7),  # Feller condition violated
+    ],
+)
+@pytest.mark.parametrize("K", [100.0, 120.0])
+def test_monte_carlo_confidence_interval_contains_analytic(params, K):
+    import warnings
+
+    model = HestonModel()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        model.set_parameters(*params)
+    analytic = model.analytic_price(100.0, K, 1.0, 0.05, "call")
+    mc = model.monte_carlo_price(
+        100.0, K, 1.0, 0.05, "call", num_sims=100_000, num_steps=50, random_seed=3
+    )
+    assert mc.std_error > 0
+    lo, hi = mc.confidence_interval
+    assert lo < analytic < hi or abs(mc.price - analytic) < 3 * mc.std_error
+
+
+def test_monte_carlo_full_truncation_euler_scheme_runs():
+    model = HestonModel()
+    model.set_parameters(0.04, 2.0, 0.04, 0.3, -0.7)
+    analytic = model.analytic_price(100.0, 100.0, 1.0, 0.05, "call")
+    mc = model.monte_carlo_price(
+        100.0, 100.0, 1.0, 0.05, "call", num_sims=100_000, num_steps=100,
+        scheme="euler", random_seed=4,
+    )
+    assert abs(mc.price - analytic) < 4 * mc.std_error
+
+
+def test_monte_carlo_is_reproducible_with_seed():
+    model = HestonModel()
+    model.set_parameters(0.04, 2.0, 0.04, 0.3, -0.7)
+    a = model.monte_carlo_price(100, 100, 1.0, 0.05, num_sims=5_000, num_steps=10, random_seed=9)
+    b = model.monte_carlo_price(100, 100, 1.0, 0.05, num_sims=5_000, num_steps=10, random_seed=9)
+    assert a.price == b.price

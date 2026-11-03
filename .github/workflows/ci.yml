@@ -28,7 +28,7 @@ jobs:
         os: [ubuntu-latest]
         python-version: ["3.10", "3.11", "3.12", "3.13"]
         include:
-          # One Windows and one macOS leg to catch numba / RNG portability issues.
+          # One Windows and one macOS leg to catch platform-specific issues.
           - os: windows-latest
             python-version: "3.11"
           - os: macos-latest

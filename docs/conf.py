@@ -57,7 +57,6 @@ autosummary_generate = True
 # without those dependencies installed (e.g. on Read the Docs). Only the
 # package itself needs to be importable for signatures and docstrings.
 autodoc_mock_imports = [
-    "numba",
     "yfinance",
     "plotly",
     "matplotlib",

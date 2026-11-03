@@ -21,7 +21,6 @@ from statistics import median
 
 import numpy as np
 
-from derivflow._numba_utils import HAS_NUMBA
 from derivflow.core.pricing_engine import (
     BlackScholesAnalytical,
     MonteCarloEngine,
@@ -131,7 +130,6 @@ def main():
     args = parser.parse_args()
 
     results = {
-        "numba_available": HAS_NUMBA,
         "black_scholes": benchmark_black_scholes(),
         "monte_carlo": benchmark_monte_carlo(),
         "asian_control_variate": benchmark_asian_control_variate(),
@@ -146,7 +144,6 @@ def main():
     asn = results["asian_control_variate"]
     print("DERIVFLOW-FINANCE Benchmarks")
     print("=" * 50)
-    print("numba available: %s" % HAS_NUMBA)
     print("\nBlack-Scholes pricing:")
     print(
         "  {:d} options in {:.3f}s -> {:,.0f} options/sec".format(

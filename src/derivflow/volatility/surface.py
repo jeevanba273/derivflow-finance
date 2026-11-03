@@ -48,7 +48,7 @@ class VolatilitySurface:
     - Arbitrage-free constraints
     """
 
-    def __init__(self, method: str = "cubic_spline"):
+    def __init__(self, method: str = "cubic_spline", reference_price: float | None = None):
         """
         Initialize volatility surface engine
 
@@ -56,8 +56,12 @@ class VolatilitySurface:
         -----------
         method : str
             Interpolation method ('cubic_spline', 'svi', 'sabr', 'rbf')
+        reference_price : float, optional
+            Spot or forward used to define log-moneyness ln(K / reference) for
+            SVI fits. If omitted, each expiry uses its median strike.
         """
         self.method = method
+        self.reference_price = reference_price
         self.vol_data = []
         self.surface_fitted = False
         self.interpolator = None
@@ -136,84 +140,101 @@ class VolatilitySurface:
         self.surface_fitted = True
         print("Cubic spline volatility surface fitted")
 
-    def _svi_implied_vol(
-        self, k: float, a: float, b: float, sigma: float, rho: float, m: float
-    ) -> float:
-        """
-        SVI (Stochastic Volatility Inspired) model
+    @staticmethod
+    def _svi_total_variance(
+        k: np.ndarray | float, a: float, b: float, sigma: float, rho: float, m: float
+    ) -> np.ndarray | float:
+        """Raw SVI total implied variance (Gatheral, 2004):
 
-        Total variance: w(k) = a + b * (ρ(k-m) + √((k-m)² + σ²))
+        w(k) = a + b * (rho * (k - m) + sqrt((k - m)^2 + sigma^2)),
+
+        with k = ln(K / reference strike) and w = implied_vol^2 * T.
         """
-        k_shifted = k - m
-        sqrt_term = np.sqrt(k_shifted**2 + sigma**2)
-        w = a + b * (rho * k_shifted + sqrt_term)
-        return np.sqrt(max(w, 0.001))  # Ensure positive variance
+        km = np.asarray(k) - m
+        return a + b * (rho * km + np.sqrt(km**2 + sigma**2))
 
     def _calibrate_svi_slice(
         self, strikes: np.ndarray, volatilities: np.ndarray, expiry: float
-    ) -> dict[str, float]:
-        """Calibrate SVI model for single expiry slice"""
-        # Convert to log-moneyness and total variance
-        atm_strike = np.median(strikes)
-        k = np.log(strikes / atm_strike)
+    ) -> dict[str, float] | None:
+        """Fit raw SVI to one expiry by least squares in total variance.
+
+        The reference strike is the median strike of the slice (or the
+        ``reference_price`` given to the constructor); it is stored with the
+        parameters so that :meth:`interpolate` uses the same log-moneyness.
+        """
+        from scipy.optimize import least_squares
+
+        ref = float(self.reference_price) if self.reference_price else float(np.median(strikes))
+        k = np.log(strikes / ref)
         w_market = volatilities**2 * expiry
+        w_max = float(np.max(w_market))
 
-        # Initial parameter guess
-        initial_params = [
-            np.mean(w_market),  # a
-            0.1,  # b
-            0.1,  # sigma
-            0.0,  # rho
-            0.0,  # m
-        ]
+        def residuals(x: np.ndarray) -> np.ndarray:
+            a, b, sigma, rho, m = x
+            return self._svi_total_variance(k, a, b, sigma, rho, m) - w_market
 
-        def objective(params):
-            a, b, sigma, rho, m = params
-            w_model = []
-            for k_i in k:
-                vol = self._svi_implied_vol(k_i, a, b, sigma, rho, m)
-                w_model.append(vol**2 * expiry)
-
-            return np.sum((np.array(w_model) - w_market) ** 2)
-
-        # Parameter bounds for numerical stability
-        bounds = [
-            (0.001, None),  # a > 0
-            (0.001, None),  # b > 0
-            (0.001, None),  # sigma > 0
-            (-0.999, 0.999),  # -1 < rho < 1
-            (None, None),  # m unconstrained
-        ]
-
-        try:
-            result = minimize(objective, initial_params, bounds=bounds, method="L-BFGS-B")
-            if result.success:
-                return dict(zip(["a", "b", "sigma", "rho", "m"], result.x))
-            else:
-                print(f"SVI calibration failed for expiry {expiry}")
-                return None
-        except Exception as e:
-            print(f"SVI calibration error: {e!s}")
+        lower = [-w_max, 0.0, 1e-4, -0.999, float(k.min()) - 1.0]
+        upper = [w_max, 10.0, 5.0, 0.999, float(k.max()) + 1.0]
+        best = None
+        k_min = float(k[np.argmin(w_market)])
+        for rho0 in (-0.5, 0.0, 0.5):
+            for sigma0 in (0.05, 0.3):
+                x0 = [0.5 * float(np.min(w_market)), 0.1, sigma0, rho0, k_min]
+                x0 = np.clip(x0, lower, upper)
+                fit = least_squares(
+                    residuals, x0, bounds=(lower, upper), xtol=1e-14, ftol=1e-14, gtol=1e-14
+                )
+                if best is None or fit.cost < best.cost:
+                    best = fit
+        if best is None or not best.success:
             return None
+        params = dict(zip(["a", "b", "sigma", "rho", "m"], map(float, best.x), strict=True))
+        params["reference_strike"] = ref
+        return params
 
     def build_surface_svi(self) -> None:
-        """Build volatility surface using SVI model"""
+        """Fit an SVI smile to every expiry that has at least five quotes."""
         strikes, expiries, volatilities = self._prepare_data_arrays()
 
         self.smile_params = {}
-
-        # Group data by expiry
         for expiry in np.unique(expiries):
             mask = expiries == expiry
-            if mask.sum() >= 5:  # Need minimum points for calibration
+            if mask.sum() >= 5:  # five SVI parameters
                 svi_params = self._calibrate_svi_slice(
                     strikes[mask], volatilities[mask], float(expiry)
                 )
                 if svi_params:
-                    self.smile_params[expiry] = svi_params
+                    self.smile_params[float(expiry)] = svi_params
 
         self.surface_fitted = True
-        print(f"SVI volatility surface fitted for {len(self.smile_params)} expiries")
+
+    def _svi_slice_variance(self, strike: float, expiry: float) -> float:
+        params = dict(self.smile_params[expiry])
+        ref = params.pop("reference_strike")
+        return float(self._svi_total_variance(np.log(strike / ref), **params))
+
+    def _interpolate_svi(self, strike: float, expiry: float) -> float:
+        """Total variance from the fitted slices, linear in T at fixed strike.
+
+        Outside the fitted expiry range the implied volatility of the nearest
+        slice is held constant.
+        """
+        if not self.smile_params:
+            raise ValueError("No SVI parameters available (each expiry needs >= 5 quotes)")
+        if expiry <= 0:
+            raise ValueError("expiry must be positive")
+        ts = sorted(self.smile_params)
+        if expiry <= ts[0]:
+            w = self._svi_slice_variance(strike, ts[0]) * expiry / ts[0]
+        elif expiry >= ts[-1]:
+            w = self._svi_slice_variance(strike, ts[-1]) * expiry / ts[-1]
+        else:
+            hi = next(n for n, t in enumerate(ts) if t >= expiry)
+            t1, t2 = ts[hi - 1], ts[hi]
+            w1 = self._svi_slice_variance(strike, t1)
+            w2 = self._svi_slice_variance(strike, t2)
+            w = w1 + (w2 - w1) * (expiry - t1) / (t2 - t1)
+        return float(np.sqrt(max(w, 0.0) / expiry))
 
     def build_surface(self, method: str | None = None) -> None:
         """
@@ -259,18 +280,7 @@ class VolatilitySurface:
             self.build_surface()
 
         if self.method == "svi":
-            # Find closest expiry with calibrated parameters
-            if not self.smile_params:
-                raise ValueError("No SVI parameters available")
-
-            closest_expiry = min(self.smile_params.keys(), key=lambda x: abs(x - expiry))
-            params = self.smile_params[closest_expiry]
-
-            # Calculate log-moneyness (need ATM reference)
-            atm_strike = strike  # Simplified - in practice, use ATM forward
-            k = np.log(strike / atm_strike)
-
-            return self._svi_implied_vol(k, **params)
+            return self._interpolate_svi(strike, expiry)
 
         elif self.method in ["cubic_spline", "rbf"]:
             if self.rbf_interpolator:

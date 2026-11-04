@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-11-04
+
+Documentation-only release. The library code is unchanged from 0.3.0.
+
+### Changed
+
+- README: the centred header with the full project name, the badge row and the built-with row
+  is back, and the text names the project in full.
+- The documentation and the benchmark and validation reports call the project DerivFlow
+  Finance; `derivflow` remains the import name and `derivflow-finance` the package name. The
+  benchmark and validation results shown were measured with 0.3.0, whose code is identical.
+- Citation metadata: the title names DerivFlow Finance, and the Zenodo concept DOI
+  (10.5281/zenodo.23932347) is in CITATION.cff and the README.
+
 ## [0.3.0] - 2026-11-04
 
 This release corrects numerical errors found by checking the library against QuantLib,

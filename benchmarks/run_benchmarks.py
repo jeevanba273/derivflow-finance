@@ -1,5 +1,5 @@
 """
-Benchmarks for derivflow, with QuantLib, py_vollib and plain NumPy/SciPy as baselines.
+Benchmarks for DerivFlow Finance, with QuantLib, py_vollib and plain NumPy/SciPy as baselines.
 
 Run with:
 
@@ -12,7 +12,7 @@ Run with:
 Method. Implementations that are compared are timed in the same loop: every
 repetition runs each of them once, in an order that rotates between
 repetitions, after one warm-up call each. Background load therefore hits all
-of them alike, and the "time / derivflow" column is the per-repetition ratio
+of them alike, and the "time / DerivFlow Finance" column is the per-repetition ratio
 of their times, reported as median [min, max]. Tables also give the median
 and [min, max] of the rates or times themselves. The total CPU load of the
 machine during the run and the busiest other processes are recorded (needs
@@ -129,7 +129,7 @@ def environment() -> dict[str, Any]:
         "ram_gb": round(ram, 1) if ram else None,
         "os": f"{platform.system()} {platform.release()} ({platform.version()})",
         "python": platform.python_version(),
-        "derivflow": derivflow.__version__,
+        "derivflow-finance": derivflow.__version__,
         "numpy": np.__version__,
         "scipy": _version("scipy"),
         "QuantLib": _version("QuantLib"),
@@ -233,7 +233,7 @@ def time_cell(times: list[float], n: int = 1, scale: float = 1e6, unit: str = "u
 
 
 def ratio_cell(times: list[float], ref: list[float], n: int = 1, n_ref: int = 1) -> str:
-    """Per-repetition (time per unit) / (derivflow time per unit)."""
+    """Per-repetition (time per unit) / (DerivFlow Finance time per unit)."""
     ratios = [(t / n) / (tr / n_ref) for t, tr in zip(times, ref, strict=True)]
     return _med_range(ratios, ".2f")
 
@@ -270,7 +270,7 @@ def random_inputs(n: int, seed: int = 0) -> dict[str, np.ndarray]:
 
 def numpy_scipy_bs_ndtr(S, K, T, r, sigma, q):
     """Plain NumPy/SciPy Black-Scholes-Merton call with scipy.special.ndtr, the same
-    normal CDF derivflow uses (the like-for-like baseline)."""
+    normal CDF DerivFlow Finance uses (the like-for-like baseline)."""
     d1 = (np.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
     d2 = d1 - sigma * np.sqrt(T)
     return S * np.exp(-q * T) * ndtr(d1) - K * np.exp(-r * T) * ndtr(d2)
@@ -326,7 +326,7 @@ def bench_pricing(reps: int, quick: bool) -> dict[str, Any]:
         reps,
     )
     names = {
-        "derivflow": "derivflow `black_scholes_price` (vectorised)",
+        "derivflow": "DerivFlow Finance `black_scholes_price` (vectorised)",
         "ndtr": "plain NumPy/SciPy formula, `scipy.special.ndtr` (vectorised)",
         "textbook": "textbook NumPy/SciPy formula, `scipy.stats.norm.cdf` (vectorised)",
     }
@@ -344,7 +344,7 @@ def bench_pricing(reps: int, quick: bool) -> dict[str, Any]:
             bs.price(s, K, T, 0.03, v, "call", 0.01) for s, v in zip(S_s, v_s, strict=True)
         ]
     }
-    names2 = {"derivflow": "derivflow `BlackScholesAnalytical.price` (scalar loop)"}
+    names2 = {"derivflow": "DerivFlow Finance `BlackScholesAnalytical.price` (scalar loop)"}
     if pv_price is not None:
         fns["py_vollib"] = lambda: [
             pv_price("c", s, K, T, 0.03, v, 0.01) for s, v in zip(S_s, v_s, strict=True)
@@ -392,7 +392,7 @@ def bench_pricing(reps: int, quick: bool) -> dict[str, Any]:
             ref_textbook.append(numpy_scipy_bs_textbook(*a))
         ref_a = np.array(ref)
         for label, vals in (
-            ("derivflow vs QuantLib", ours),
+            ("DerivFlow Finance vs QuantLib", ours),
             ("NumPy/SciPy formula with `ndtr` vs QuantLib", ref_ndtr),
             ("NumPy/SciPy formula with `norm.cdf` vs QuantLib", ref_textbook),
         ):
@@ -400,9 +400,10 @@ def bench_pricing(reps: int, quick: bool) -> dict[str, Any]:
             acc_rows.append([label, f"{n_acc:,}", a, rel])
 
     notes = [
-        "The `ndtr` row is the like-for-like baseline: the same normal CDF as derivflow, without "
-        "derivflow's input checks, broadcasting of all six inputs, expiry handling and call/put "
-        "branch. The `norm.cdf` row is the textbook form, which adds scipy.stats overhead.",
+        "The `ndtr` row is the like-for-like baseline: the same normal CDF as DerivFlow "
+        "Finance, without its input checks, broadcasting of all six inputs, expiry handling "
+        "and call/put branch. The `norm.cdf` row is the textbook form, which adds scipy.stats "
+        "overhead.",
         "QuantLib reprices a prebuilt option after updating two quotes, so each call includes its "
         "observer notifications and the Python binding; the Python loops include interpreter "
         "overhead.",
@@ -483,8 +484,8 @@ def bench_implied_vol(reps: int, quick: bool) -> dict[str, Any]:
     }
     sizes = {"derivflow": len(xs["price"]), "derivflow_vec": len(xv["price"])}
     names = {
-        "derivflow": "derivflow `implied_volatility` (scalar loop)",
-        "derivflow_vec": "derivflow `implied_volatility_vectorized`",
+        "derivflow": "DerivFlow Finance `implied_volatility` (scalar loop)",
+        "derivflow_vec": "DerivFlow Finance `implied_volatility_vectorized`",
     }
     data = {"derivflow": xs, "derivflow_vec": xv}
     if pv_iv is not None:
@@ -551,7 +552,8 @@ def bench_implied_vol(reps: int, quick: bool) -> dict[str, Any]:
         "Inputs: S=100, K/S uniform in [0.7, 1.3], T uniform in [1 week, 2 years], sigma uniform "
         "in [8%, 80%], r=3%, q=1%, half calls and half puts, prices from known volatilities. "
         "Error columns: max |solved - true| over all quotes, over quotes with vega > 1e-6 S, and "
-        "max relative error. The ratio compares time per quote with the scalar derivflow solver."
+        "max relative error. The ratio compares time per quote with the scalar DerivFlow "
+        "Finance solver."
     )
     return {"rows": rows, "notes": notes, "samples": samples}
 
@@ -567,7 +569,7 @@ def bench_greeks(reps: int, quick: bool) -> dict[str, Any]:
             for s, v in zip(x["S"], x["sigma"], strict=True)
         ]
     }
-    names = {"derivflow": "derivflow `analytical_greeks` (10 Greeks, scalar loop)"}
+    names = {"derivflow": "DerivFlow Finance `analytical_greeks` (10 Greeks, scalar loop)"}
     acc, notes = [], []
     if ql is not None:
         process, spot, vol = _ql_bsm(100.0, 0.03, 0.01, 0.2, quotes=True)
@@ -585,7 +587,7 @@ def bench_greeks(reps: int, quick: bool) -> dict[str, Any]:
         fns["QuantLib"] = ql_greeks
         names["QuantLib"] = "QuantLib `AnalyticEuropeanEngine` (5 Greeks, scalar loop)"
         notes.append(
-            "derivflow computes 10 Greeks per call, QuantLib 5 here "
+            "DerivFlow Finance computes 10 Greeks per call, QuantLib 5 here "
             "(delta, gamma, vega, theta, rho)."
         )
         ref = np.array(ql_greeks())
@@ -657,7 +659,7 @@ def bench_trees_heston(reps: int, quick: bool) -> dict[str, Any]:
         notes.append(
             f"Reference: QuantLib FdBlackScholesVanillaEngine on a 4000 x 4000 grid ({ref:.6f}). "
             "QuantLib's 'crr' tree uses a drift-adjusted up-probability, so its tree values differ "
-            "from the textbook CRR used by derivflow at the same step count."
+            "from the textbook CRR used by DerivFlow Finance at the same step count."
         )
     for steps in (100, 500, 2000) if not quick else (100, 500):
         tree = BinomialTree(steps)
@@ -676,7 +678,7 @@ def bench_trees_heston(reps: int, quick: bool) -> dict[str, Any]:
         for k, v in samples.items():
             val = fns[k]()
             label = (
-                f"derivflow BinomialTree ({steps} steps)"
+                f"DerivFlow Finance BinomialTree ({steps} steps)"
                 if k == "derivflow"
                 else f"QuantLib CRR tree ({steps} steps)"
             )
@@ -730,7 +732,7 @@ def bench_trees_heston(reps: int, quick: bool) -> dict[str, Any]:
         a, rel = "-", "-"
     heston_rows.append(
         [
-            "derivflow `analytic_price` (scipy quad)",
+            "DerivFlow Finance `analytic_price` (scipy quad)",
             time_cell(samples["derivflow"], n, 1e3, "ms"),
             "1.00 [1.00, 1.00]",
             a,
@@ -796,9 +798,9 @@ def main() -> None:
         + (" --quick" if args.quick else "")
         + (f" --reps {args.reps}" if args.reps != DEFAULT_REPS else "")
     )
-    ratio = "time / derivflow, median [min, max]"
+    ratio = "time / DerivFlow Finance, median [min, max]"
     lines = [
-        "# derivflow benchmark results",
+        "# DerivFlow Finance benchmark results",
         "",
         f"Command: `{cmd}`",
         "",
@@ -806,9 +808,9 @@ def main() -> None:
         "",
         f"Method: implementations in one table are timed in the same loop, {args.reps} repetitions "
         "after one warm-up call each, in a rotating order. Rates and times are median [min, max]; "
-        f"the '{ratio}' column is the per-repetition ratio of time per unit to derivflow's "
-        "(below 1 means faster than derivflow). Everything runs single-threaded in one Python "
-        "process.",
+        f"the '{ratio}' column is the per-repetition ratio of time per unit to DerivFlow "
+        "Finance's (below 1 means faster than DerivFlow Finance). Everything runs "
+        "single-threaded in one Python process.",
         "",
         load_line(load),
         "",
@@ -888,7 +890,7 @@ def main() -> None:
         ),
         "",
         *[f"- {n}" for n in th["notes"]],
-        "- The ratio compares each tree with derivflow's tree at the same number of steps.",
+        "- The ratio compares each tree with DerivFlow Finance's tree at the same number of steps.",
         "",
         "Heston analytic call prices, 13 strikes 70-130, T=1, r=3%, q=1%, v0=theta=0.04, kappa=2, "
         "sigma=0.5, rho=-0.7 (time per price):",

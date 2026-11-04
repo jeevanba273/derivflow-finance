@@ -1,10 +1,10 @@
-# derivflow validation results
+# DerivFlow Finance validation results
 
-Command: `python benchmarks/validation_report.py` (derivflow 0.3.0, QuantLib 1.44, numpy 2.5.4)
+Command: `python benchmarks/validation_report.py` (derivflow-finance 0.3.0, QuantLib 1.44, numpy 2.5.4)
 
 ## Published reference values
 
-| case | reference | derivflow | matches to the quoted digits |
+| case | reference | DerivFlow Finance | matches to the quoted digits |
 |---|---|---|---|
 | Hull: call, S=42 K=40 T=0.5 r=10% sigma=20% | 4.76 | 4.759422 | yes |
 | Hull: put, same inputs | 0.81 | 0.808599 | yes |

@@ -6,14 +6,14 @@
 table run in the same loop: after one warm-up call each, every repetition runs each of them
 once, in an order that rotates between repetitions, 15 repetitions in all. Background load
 therefore affects them alike. Tables give the median and the [min, max] range of rates or
-times, and the per-repetition ratio of each implementation's time to derivflow's (below 1
-means faster than derivflow). All implementations get identical inputs, single-threaded, in one
+times, and the per-repetition ratio of each implementation's time to DerivFlow Finance's (below 1
+means faster than DerivFlow Finance). All implementations get identical inputs, single-threaded, in one
 Python process. The script also records the total CPU load during the run and the busiest other
 processes (with psutil).
 
 The baselines are QuantLib (C++ with Python bindings), py_vollib (Python implementation of
 Jaeckel's "Let's Be Rational") and the Black-Scholes-Merton formula written directly in
-NumPy/SciPy, in two forms: with `scipy.special.ndtr`, the same normal CDF derivflow uses, and
+NumPy/SciPy, in two forms: with `scipy.special.ndtr`, the same normal CDF DerivFlow Finance uses, and
 in the textbook form with `scipy.stats.norm.cdf`.
 
 Not every comparison is like-for-like, and the notes under each table say how:
@@ -22,14 +22,14 @@ Not every comparison is like-for-like, and the notes under each table say how:
   broadcasting of six inputs, no expiry handling and no call/put branch.
 - QuantLib is driven from Python one option at a time, so its rows include the cost of the
   Python bindings and of QuantLib's observer updates.
-- derivflow computes ten Greeks per call, QuantLib five in the benchmark.
-- QuantLib's "crr" tree uses a different up-probability from derivflow's textbook CRR tree, so
+- DerivFlow Finance computes ten Greeks per call, QuantLib five in the benchmark.
+- QuantLib's "crr" tree uses a different up-probability from DerivFlow Finance's textbook CRR tree, so
   the two give different prices at the same step count.
-- Heston: derivflow integrates with SciPy's adaptive quadrature (QUADPACK), QuantLib with
+- Heston: DerivFlow Finance integrates with SciPy's adaptive quadrature (QUADPACK), QuantLib with
   adaptive Gauss-Lobatto at a relative tolerance of 1e-12.
 
-Where derivflow is slower, the tables show it: the plain `ndtr` formula takes about 0.71 of
-derivflow's time at a million options; QuantLib's tree about half at 2000 steps and about a
+Where DerivFlow Finance is slower, the tables show it: the plain `ndtr` formula takes about 0.71 of
+DerivFlow Finance's time at a million options; QuantLib's tree about half at 2000 steps and about a
 tenth at 100 steps; its Heston engine about half per price.
 
 The published run was made with OneDrive syncing in the background (total CPU 16-31%, median

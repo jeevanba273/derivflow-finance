@@ -1,4 +1,4 @@
-# Contributing to derivflow
+# Contributing to DerivFlow Finance
 
 Bug reports, fixes and new tests are welcome. A wrong number is the most useful kind of bug
 report: please include the inputs, the value you got, the value you expected and where the

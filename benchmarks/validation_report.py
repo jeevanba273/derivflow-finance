@@ -1,5 +1,5 @@
 """
-Validation tables: derivflow against published values, QuantLib and py_vollib.
+Validation tables: DerivFlow Finance against published values, QuantLib and py_vollib.
 
 Run with:
 
@@ -434,16 +434,21 @@ def main() -> None:
     parser.add_argument("--output", help="also write the Markdown report to this file")
     args = parser.parse_args()
     ql_version = ql.__version__ if ql else "not installed"
-    versions = f"derivflow {derivflow.__version__}, QuantLib {ql_version}, numpy {np.__version__}"
+    versions = (
+        f"derivflow-finance {derivflow.__version__}, QuantLib {ql_version}, numpy {np.__version__}"
+    )
     report = "\n".join(
         [
-            "# derivflow validation results",
+            "# DerivFlow Finance validation results",
             "",
             f"Command: `{COMMAND}` ({versions})",
             "",
             "## Published reference values",
             "",
-            table(["case", "reference", "derivflow", "matches to the quoted digits"], published()),
+            table(
+                ["case", "reference", "DerivFlow Finance", "matches to the quoted digits"],
+                published(),
+            ),
             "",
             parity(),
             "",

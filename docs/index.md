@@ -1,6 +1,6 @@
-# derivflow
+# DerivFlow Finance
 
-derivflow is a Python library for pricing equity-style options and measuring the risk of
+DerivFlow Finance is a Python library for pricing equity-style options and measuring the risk of
 small option books. It covers the Black-Scholes-Merton closed form and Greeks, implied
 volatility, Cox-Ross-Rubinstein trees with early exercise, Monte Carlo with variance
 reduction, single-barrier and Asian options, the Heston model, volatility surfaces and
@@ -11,7 +11,7 @@ conventions beyond ACT/365.
 
 ```{toctree}
 :maxdepth: 2
-:caption: Using derivflow
+:caption: Using DerivFlow Finance
 
 getting-started
 user-guide/index

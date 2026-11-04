@@ -2,7 +2,7 @@
 
 ## Install
 
-derivflow needs Python 3.10 or later. The core package depends only on NumPy and SciPy.
+DerivFlow Finance needs Python 3.10 or later. The core package depends only on NumPy and SciPy.
 
 ```bash
 pip install derivflow-finance

@@ -1,4 +1,4 @@
-"""Sphinx configuration for the derivflow documentation."""
+"""Sphinx configuration for the DerivFlow Finance documentation."""
 
 import os
 import sys
@@ -7,7 +7,7 @@ from importlib.metadata import version as _pkg_version
 
 sys.path.insert(0, os.path.abspath("../src"))
 
-project = "derivflow"
+project = "DerivFlow Finance"
 author = "Jeevan B A"
 copyright = "2025-2026, Jeevan B A"
 
@@ -41,5 +41,5 @@ myst_enable_extensions = ["dollarmath", "amsmath"]
 myst_heading_anchors = 3
 
 html_theme = "sphinx_rtd_theme"
-html_title = f"derivflow {release}"
+html_title = f"DerivFlow Finance {release}"
 html_static_path = ["_static"]

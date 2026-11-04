@@ -1,16 +1,37 @@
-# derivflow
+<div align="center">
 
-[![CI](https://github.com/jeevanba273/derivflow-finance/actions/workflows/ci.yml/badge.svg)](https://github.com/jeevanba273/derivflow-finance/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/derivflow-finance)](https://pypi.org/project/derivflow-finance/)
-[![Python versions](https://img.shields.io/pypi/pyversions/derivflow-finance)](https://pypi.org/project/derivflow-finance/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/jeevanba273/derivflow-finance/blob/main/LICENSE)
+# DERIVFLOW FINANCE
 
-derivflow is a Python library for pricing equity-style options and measuring the risk of small
-option books: the Black-Scholes-Merton closed form and Greeks, implied volatility, binomial
-trees with early exercise, Monte Carlo with variance reduction, barrier and Asian options, the
-Heston model, volatility surfaces and portfolio VaR. It is written for students, researchers and
-practitioners who want short NumPy/SciPy code they can read, with results checked against
-QuantLib, py_vollib and textbook values. The core depends only on NumPy and SciPy.
+<em>Option pricing, Greeks, exotic options, stochastic volatility and portfolio risk in Python.</em>
+
+<!-- BADGES -->
+<img src="https://img.shields.io/github/license/jeevanba273/derivflow-finance?style=flat&logo=opensourceinitiative&logoColor=white&color=0080ff&cache=bust&v=1" alt="license">
+<img src="https://img.shields.io/github/last-commit/jeevanba273/derivflow-finance?style=flat&logo=git&logoColor=white&color=0080ff" alt="last-commit">
+<img src="https://img.shields.io/github/languages/top/jeevanba273/derivflow-finance?style=flat&color=0080ff" alt="repo-top-language">
+<img src="https://img.shields.io/github/languages/count/jeevanba273/derivflow-finance?style=flat&color=0080ff" alt="repo-language-count">
+<a href="https://pypi.org/project/derivflow-finance/"><img src="https://img.shields.io/pypi/v/derivflow-finance?style=flat&logo=pypi&logoColor=white&color=0080ff&cache=bust" alt="pypi-version"></a>
+<img src="https://static.pepy.tech/badge/derivflow-finance" alt="total-downloads">
+<a href="https://github.com/jeevanba273/derivflow-finance/actions/workflows/ci.yml"><img src="https://github.com/jeevanba273/derivflow-finance/actions/workflows/ci.yml/badge.svg" alt="ci-status"></a>
+<a href="https://derivflow-finance.readthedocs.io"><img src="https://readthedocs.org/projects/derivflow-finance/badge/?version=latest" alt="docs-status"></a>
+
+<em>Built with the tools and technologies:</em>
+
+<img src="https://img.shields.io/badge/Python-3776AB.svg?style=flat&logo=Python&logoColor=white" alt="Python">
+<img src="https://img.shields.io/badge/NumPy-013243.svg?style=flat&logo=NumPy&logoColor=white" alt="NumPy">
+<img src="https://img.shields.io/badge/SciPy-8CAAE6.svg?style=flat&logo=SciPy&logoColor=white" alt="SciPy">
+<img src="https://img.shields.io/badge/Plotly-3F4F75.svg?style=flat&logo=plotly&logoColor=white" alt="Plotly">
+
+</div>
+<br>
+
+DerivFlow Finance (`pip install derivflow-finance`, imported as `derivflow`) is a Python library
+for pricing equity-style options and measuring the risk of small option books: the
+Black-Scholes-Merton closed form and Greeks, implied volatility, binomial trees with early
+exercise, Monte Carlo with variance reduction, barrier and Asian options, the Heston model,
+volatility surfaces and portfolio VaR. It is written for students, researchers and practitioners
+who want short NumPy/SciPy code they can read, with results checked against QuantLib, py_vollib
+and textbook values. The core depends only on NumPy and SciPy; Plotly is an optional extra for
+figures.
 
 ## Install
 

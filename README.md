@@ -148,15 +148,15 @@ standard error.
 
 Measured with `python benchmarks/run_benchmarks.py` on an Intel Core Ultra 9 185H (22 logical
 CPUs), 31.5 GB RAM, Windows 11, Python 3.13.5, NumPy 2.5.4, SciPy 1.18.1, QuantLib 1.44,
-py_vollib 1.0.12, single-threaded. Each comparison runs derivflow and its baselines in the same
-loop, 15 repetitions in rotating order; the table shows medians, and in brackets the median
-per-repetition ratio of the baseline's time to derivflow's (below 1 means faster than
-derivflow). Background load: OneDrive syncing, 16-31% total CPU during the run (median 19%);
+py_vollib 1.0.12, single-threaded. Each comparison runs DerivFlow Finance and its baselines in
+the same loop, 15 repetitions in rotating order; the table shows medians, and in brackets the
+median per-repetition ratio of the baseline's time to DerivFlow Finance's (below 1 means faster
+than DerivFlow Finance). Background load: OneDrive syncing, 16-31% total CPU during the run (median 19%);
 absolute rates may be lower than on an idle machine, the ratios are measured side by side.
 Full tables with ranges:
 [docs/benchmarks](https://derivflow-finance.readthedocs.io/en/latest/benchmarks.html).
 
-| operation | derivflow | baselines (time / derivflow's) |
+| operation | DerivFlow Finance | baselines (time / DerivFlow Finance's) |
 |---|---|---|
 | European price, 1,000,000 options, vectorised | 8.9 million/s | plain formula with `scipy.special.ndtr` 12.6 million/s (0.71); textbook form with `scipy.stats.norm.cdf` 8.5 million/s (1.05) |
 | European price, scalar Python loop | 684,000/s | py_vollib 414,000/s (1.66); QuantLib via Python 275,000/s (2.46) |
@@ -165,8 +165,8 @@ Full tables with ranges:
 | American put, 2000-step tree | 28.3 ms | QuantLib CRR tree 14.7 ms (0.52) |
 | Heston analytic call | 0.8 ms per price | QuantLib 0.4 ms (0.49) |
 
-derivflow is slower than the plain `ndtr` formula, which skips its input checks, broadcasting
-and expiry handling, and slower than QuantLib's tree and Heston engine. QuantLib's rows are
+DerivFlow Finance is slower than the plain `ndtr` formula, which skips its input checks,
+broadcasting and expiry handling, and slower than QuantLib's tree and Heston engine. QuantLib's rows are
 driven from Python one option at a time and include binding overhead, and its tree uses a
 different up-probability, so those rows are not like-for-like.
 
@@ -206,7 +206,7 @@ a user guide per area, the API reference, methods and references, validation and
 ## Contributing, citing, licence
 
 Bug reports and pull requests are welcome; see [CONTRIBUTING.md](https://github.com/jeevanba273/derivflow-finance/blob/main/CONTRIBUTING.md). To cite
-derivflow, use the metadata in [CITATION.cff](https://github.com/jeevanba273/derivflow-finance/blob/main/CITATION.cff) or the Zenodo DOI
+DerivFlow Finance, use the metadata in [CITATION.cff](https://github.com/jeevanba273/derivflow-finance/blob/main/CITATION.cff) or the Zenodo DOI
 [10.5281/zenodo.23932347](https://doi.org/10.5281/zenodo.23932347), which resolves to the
 latest version. Released under the MIT licence.
 

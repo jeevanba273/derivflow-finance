@@ -185,6 +185,8 @@ a user guide per area, the API reference, methods and references, validation and
 ## Contributing, citing, licence
 
 Bug reports and pull requests are welcome; see [CONTRIBUTING.md](https://github.com/jeevanba273/derivflow-finance/blob/main/CONTRIBUTING.md). To cite
-derivflow, use the metadata in [CITATION.cff](https://github.com/jeevanba273/derivflow-finance/blob/main/CITATION.cff). Released under the MIT licence.
+derivflow, use the metadata in [CITATION.cff](https://github.com/jeevanba273/derivflow-finance/blob/main/CITATION.cff) or the Zenodo DOI
+[10.5281/zenodo.23932347](https://doi.org/10.5281/zenodo.23932347), which resolves to the
+latest version. Released under the MIT licence.
 
 For research and education; not investment advice.

@@ -27,6 +27,7 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - name: Type check (mypy)
+        # scipy-stubs 1.18 needs Python >= 3.12, so keep this job on 3.12 or later.
         run: |
           python -m pip install -e . "mypy==2.4.1" "scipy-stubs==1.18.1.1" "pandas-stubs==3.1.0.261029"
           mypy

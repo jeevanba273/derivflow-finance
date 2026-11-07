@@ -13,7 +13,7 @@ import itertools
 
 import pytest
 
-from derivflow.greeks.calculator import GreeksCalculator
+from derivflow_finance.greeks.calculator import GreeksCalculator
 
 calc = GreeksCalculator("analytical")
 

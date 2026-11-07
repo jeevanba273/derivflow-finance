@@ -15,7 +15,7 @@ with ddof = 1) and a 95% confidence interval (estimate plus or minus 1.96 standa
   known, with the regression coefficient estimated from the same sample.
 
 ```python
-from derivflow import MonteCarloEngine, black_scholes_price
+from derivflow_finance import MonteCarloEngine, black_scholes_price
 
 S, K, T, r, sigma = 100.0, 100.0, 1.0, 0.05, 0.2
 print(f"closed form {black_scholes_price(S, K, T, r, sigma):.4f}")

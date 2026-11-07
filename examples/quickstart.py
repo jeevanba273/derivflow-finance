@@ -3,7 +3,7 @@
 Run with:  python examples/quickstart.py
 """
 
-from derivflow import GreeksCalculator, implied_volatility, price_european_option
+from derivflow_finance import GreeksCalculator, implied_volatility, price_european_option
 
 # Hull's worked example: S=42, K=40, six months, r=10%, sigma=20%.
 S, K, T, r, sigma = 42.0, 40.0, 0.5, 0.10, 0.20

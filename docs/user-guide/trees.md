@@ -9,7 +9,7 @@ d = 1/u and risk-neutral probability p = (exp((r - q) dt) - d) / (u - d). With
 Hull's five-step example (S = K = 50, r = 10%, sigma = 40%, five months) is worth 4.49.
 
 ```python
-from derivflow import BinomialTree, black_scholes_price
+from derivflow_finance import BinomialTree, black_scholes_price
 
 print(round(BinomialTree(5).price(50, 50, 5 / 12, 0.10, 0.40, "put", american=True), 2))
 ```

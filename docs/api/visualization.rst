@@ -1,4 +1,4 @@
 Plots (optional, extra ``[plot]``)
 ==================================
 
-.. automodule:: derivflow.visualization.dashboard
+.. automodule:: derivflow_finance.visualization.dashboard

@@ -17,7 +17,7 @@ Conventions:
 ## A small book
 
 ```python
-from derivflow import PortfolioRiskAnalyzer
+from derivflow_finance import PortfolioRiskAnalyzer
 
 book = PortfolioRiskAnalyzer(risk_free_rate=0.04)
 book.add_stock_position("INDEX_A", 1_000, 100.0, volatility=0.18)
@@ -86,13 +86,13 @@ shares of INDEX_A to sell for delta neutrality: 1540.4
 
 ## VaR and expected shortfall of a P&L sample
 
-`derivflow.portfolio.risk_measures` works on any P&L sample (historical or simulated) and
+`derivflow_finance.portfolio.risk_measures` works on any P&L sample (historical or simulated) and
 gives closed forms for normal and Student-t P&L.
 
 ```python
 import numpy as np
 
-from derivflow import (
+from derivflow_finance import (
     expected_shortfall,
     normal_es,
     normal_var,

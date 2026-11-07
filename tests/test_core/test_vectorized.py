@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from derivflow.core.pricing_engine import BlackScholesAnalytical, black_scholes_price
+from derivflow_finance.core.pricing_engine import BlackScholesAnalytical, black_scholes_price
 
 
 def test_matches_scalar_pricer_elementwise():

@@ -5,7 +5,7 @@ import itertools
 import numpy as np
 import pytest
 
-from derivflow.core.pricing_engine import (
+from derivflow_finance.core.pricing_engine import (
     BlackScholesAnalytical,
     PricingEngine,
     price_european_option,

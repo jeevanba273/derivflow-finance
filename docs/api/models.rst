@@ -1,4 +1,4 @@
 Heston model
 ============
 
-.. automodule:: derivflow.models.heston
+.. automodule:: derivflow_finance.models.heston

@@ -15,7 +15,7 @@ Methods: delta-normal VaR (:meth:`PortfolioRiskAnalyzer.calculate_var_parametric
 Monte Carlo VaR by full revaluation
 (:meth:`PortfolioRiskAnalyzer.calculate_var_monte_carlo`), component VaR,
 Greeks per underlying, delta hedge ratios and scenario P&L. Historical VaR
-on a P&L series is available in :mod:`derivflow.portfolio.risk_measures`.
+on a P&L series is available in :mod:`derivflow_finance.portfolio.risk_measures`.
 
 Limitations: volatilities and correlations are inputs (not estimated), there
 is no volatility or rate risk in the VaR, and the underlyings' returns are
@@ -50,7 +50,7 @@ class Position:
     options); ``quantity`` is shares or contracts, negative for short;
     ``expiry`` is in years; ``volatility`` is annualised (the option's implied
     volatility for options). Greeks are per unit of the option, in the units
-    of :class:`~derivflow.greeks.calculator.GreeksResult`."""
+    of :class:`~derivflow_finance.greeks.calculator.GreeksResult`."""
 
     symbol: str
     position_type: str  # 'stock' or 'option'
@@ -344,7 +344,7 @@ class PortfolioRiskAnalyzer:
         delta and gamma are in shares of the underlying (stock delta 1, option
         Greeks times quantity times the contract multiplier); theta, vega and
         rho are in currency per day, per vol point and per rate point, as in
-        :class:`~derivflow.greeks.calculator.GreeksResult`.
+        :class:`~derivflow_finance.greeks.calculator.GreeksResult`.
         """
         names = ("delta", "gamma", "theta", "vega", "rho")
         out = {sym: dict.fromkeys(names, 0.0) for sym in self.underlyings()}
@@ -476,8 +476,8 @@ class PortfolioRiskAnalyzer:
         Monte Carlo VaR and expected shortfall by full revaluation.
 
         Simulates the P&L with :meth:`simulate_pnl` and reads VaR and ES off
-        the sample with :func:`derivflow.portfolio.risk_measures.value_at_risk`
-        and :func:`~derivflow.portfolio.risk_measures.expected_shortfall`.
+        the sample with :func:`derivflow_finance.portfolio.risk_measures.value_at_risk`
+        and :func:`~derivflow_finance.portfolio.risk_measures.expected_shortfall`.
         The estimates carry sampling error that shrinks like 1/sqrt(num_sims).
 
         Returns:

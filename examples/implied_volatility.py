@@ -5,7 +5,7 @@ Run with:  python examples/implied_volatility.py
 
 import numpy as np
 
-from derivflow import black_scholes_price, implied_volatility, implied_volatility_vectorized
+from derivflow_finance import black_scholes_price, implied_volatility, implied_volatility_vectorized
 
 S, T, r, q = 100.0, 0.5, 0.03, 0.01
 

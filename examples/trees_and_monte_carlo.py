@@ -3,7 +3,7 @@
 Run with:  python examples/trees_and_monte_carlo.py
 """
 
-from derivflow import BinomialTree, MonteCarloEngine, black_scholes_price
+from derivflow_finance import BinomialTree, MonteCarloEngine, black_scholes_price
 
 S, K, T, r, sigma = 100.0, 100.0, 1.0, 0.05, 0.20
 bs = black_scholes_price(S, K, T, r, sigma, "put")

@@ -4,9 +4,9 @@ Implied volatility and surfaces
 Implied volatility
 ------------------
 
-.. automodule:: derivflow.volatility.implied_vol
+.. automodule:: derivflow_finance.volatility.implied_vol
 
 Volatility surface
 ------------------
 
-.. automodule:: derivflow.volatility.surface
+.. automodule:: derivflow_finance.volatility.surface

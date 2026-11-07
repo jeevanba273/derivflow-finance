@@ -12,7 +12,7 @@ puts, no rebate) under Black-Scholes dynamics without dividends.
   is a discretely monitored barrier.
 
 ```python
-from derivflow import AsianOptions, BarrierOptions, black_scholes_price
+from derivflow_finance import AsianOptions, BarrierOptions, black_scholes_price
 
 S, K, T, r, sigma = 100.0, 100.0, 1.0, 0.05, 0.20
 barrier = BarrierOptions(random_seed=7)

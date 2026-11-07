@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from derivflow import AsianOptions, BarrierOptions, create_sample_surface
+from derivflow_finance import AsianOptions, BarrierOptions, create_sample_surface
 
 
 def _global_state():

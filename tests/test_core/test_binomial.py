@@ -5,7 +5,7 @@ import itertools
 import numpy as np
 import pytest
 
-from derivflow.core.pricing_engine import BinomialTree
+from derivflow_finance.core.pricing_engine import BinomialTree
 
 
 def test_hull_five_step_american_put():

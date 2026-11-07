@@ -60,7 +60,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
       - name: Run the test suite (cross-checks included, network tests skipped)
-        run: pytest --cov=derivflow --cov-report=term-missing -p no:cacheprovider
+        run: pytest --cov=derivflow_finance --cov-report=term-missing -p no:cacheprovider
       - name: Benchmark script smoke run
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
         run: python benchmarks/run_benchmarks.py --quick --reps 1 > /dev/null

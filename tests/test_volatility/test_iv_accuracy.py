@@ -12,7 +12,10 @@ import numpy as np
 import pytest
 from scipy.stats import norm
 
-from derivflow.volatility.implied_vol import implied_volatility, implied_volatility_vectorized
+from derivflow_finance.volatility.implied_vol import (
+    implied_volatility,
+    implied_volatility_vectorized,
+)
 
 S, R, Q = 100.0, 0.03, 0.01
 GRID = list(
@@ -56,7 +59,7 @@ def test_round_trip(bs_ref, T, m, sigma, ot):
 def test_low_vega_case_is_accurate():
     """Deep in the money, one day to expiry, high volatility: vega is small, so
     a price-tolerance stopping rule loses accuracy in volatility."""
-    from derivflow.core.pricing_engine import black_scholes_price
+    from derivflow_finance.core.pricing_engine import black_scholes_price
 
     price = black_scholes_price(100.0, 70.0, 1 / 365, 0.03, 1.5, "call", 0.01)
     iv = implied_volatility(price, 100.0, 70.0, 1 / 365, 0.03, "call", 0.01)

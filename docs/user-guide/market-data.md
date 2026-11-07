@@ -1,6 +1,6 @@
 # Market data
 
-`derivflow.utils.market_data.AdvancedMarketData` fetches data from Yahoo Finance through
+`derivflow_finance.utils.market_data.AdvancedMarketData` fetches data from Yahoo Finance through
 `yfinance`. It is an optional extra and the core package never imports it:
 
 ```bash
@@ -12,7 +12,7 @@ itself is tested offline against a stub of `yfinance`.
 
 ```python
 # not run in the tests: needs internet access
-from derivflow.utils.market_data import AdvancedMarketData
+from derivflow_finance.utils.market_data import AdvancedMarketData
 
 md = AdvancedMarketData()
 spot, when = md.get_current_price("SPY")

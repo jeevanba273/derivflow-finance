@@ -2,8 +2,11 @@
 
 import pytest
 
-from derivflow.greeks.calculator import GreeksCalculator
-from derivflow.portfolio.portfolio_risk import PortfolioRiskAnalyzer, create_sample_portfolio
+from derivflow_finance.greeks.calculator import GreeksCalculator
+from derivflow_finance.portfolio.portfolio_risk import (
+    PortfolioRiskAnalyzer,
+    create_sample_portfolio,
+)
 
 
 def test_sample_portfolio_builds():
@@ -35,7 +38,7 @@ def test_parametric_var_ordering():
 def test_dividend_yield_consistent_in_valuation():
     """Regression: portfolio value must reprice dividend options at their q,
     consistent with the q-aware Greaks stored on the position (not q=0)."""
-    from derivflow.core.pricing_engine import price_european_option
+    from derivflow_finance.core.pricing_engine import price_european_option
 
     analyzer = PortfolioRiskAnalyzer(risk_free_rate=0.05)
     analyzer.add_option_position("X", 1, 100, 100, 1.0, "call", volatility=0.2, dividend_yield=0.05)
@@ -79,7 +82,7 @@ def test_risk_contributions_are_component_var_and_sum_to_var():
 
 
 def test_scenario_full_revaluation_and_delta_gamma():
-    from derivflow.core.pricing_engine import black_scholes_price
+    from derivflow_finance.core.pricing_engine import black_scholes_price
 
     pa = PortfolioRiskAnalyzer(risk_free_rate=0.03)
     pa.add_option_position("X", 2, 100.0, 100.0, 0.5, "call", 0.25)

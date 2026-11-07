@@ -16,7 +16,7 @@ import itertools
 import numpy as np
 import pytest
 
-from derivflow import GreeksCalculator, black_scholes_price, price_european_option
+from derivflow_finance import GreeksCalculator, black_scholes_price, price_european_option
 
 greeks = GreeksCalculator().analytical_greeks
 

@@ -2,7 +2,7 @@
 
 import pytest
 
-from derivflow.volatility.surface import create_sample_surface
+from derivflow_finance.volatility.surface import create_sample_surface
 
 
 def test_sample_surface_grid():
@@ -38,7 +38,7 @@ def _svi_surface():
     """Surface whose slices are exact SVI smiles in log-moneyness ln(K / 100)."""
     import numpy as np
 
-    from derivflow.volatility.surface import VolatilitySurface
+    from derivflow_finance.volatility.surface import VolatilitySurface
 
     params = {0.25: (0.008, 0.04, -0.4, 0.02, 0.15), 1.0: (0.03, 0.08, -0.35, 0.03, 0.2)}
     surface = VolatilitySurface(method="svi")
@@ -81,7 +81,7 @@ def test_interpolating_methods_reproduce_the_input_points(method):
 
 
 def test_linear_interpolation_between_two_strikes():
-    from derivflow.volatility.surface import VolatilitySurface
+    from derivflow_finance.volatility.surface import VolatilitySurface
 
     surface = VolatilitySurface(method="linear")
     for K, v in ((90, 0.30), (110, 0.20)):
@@ -113,7 +113,7 @@ def test_building_a_surface_prints_nothing(capsys):
 def _check(vols, strikes=None):
     import numpy as np
 
-    from derivflow.volatility.surface import VolatilitySurface
+    from derivflow_finance.volatility.surface import VolatilitySurface
 
     strikes = np.linspace(80, 120, 9) if strikes is None else np.asarray(strikes, float)
     return VolatilitySurface().check_arbitrage(
@@ -154,8 +154,8 @@ def test_call_price_rising_with_strike_is_vertical_spread_arbitrage():
 def test_load_market_data_accepts_chain_rows_and_skips_unsolved_quotes():
     """Rows from implied_vol_from_chain (with option_type and possibly NaN
     volatility) load directly; quotes without a volatility are skipped."""
-    from derivflow import black_scholes_price, implied_vol_from_chain
-    from derivflow.volatility.surface import VolatilitySurface
+    from derivflow_finance import black_scholes_price, implied_vol_from_chain
+    from derivflow_finance.volatility.surface import VolatilitySurface
 
     chain = [
         {
@@ -178,7 +178,7 @@ def test_load_market_data_accepts_chain_rows_and_skips_unsolved_quotes():
 def test_duplicate_quotes_at_one_point_are_averaged(method):
     """A call and a put at the same strike and expiry give two quotes for one
     point; the surface uses their average instead of failing."""
-    from derivflow.volatility.surface import VolatilitySurface
+    from derivflow_finance.volatility.surface import VolatilitySurface
 
     surface = VolatilitySurface(method=method)
     for K in (90.0, 100.0, 110.0):
@@ -195,7 +195,7 @@ def test_svi_fits_every_expiry_with_noisy_quotes():
 
     import numpy as np
 
-    from derivflow.volatility.surface import VolatilitySurface
+    from derivflow_finance.volatility.surface import VolatilitySurface
 
     rng = np.random.default_rng(1)
     strikes = np.linspace(80, 120, 8)
@@ -224,7 +224,7 @@ def test_svi_warns_about_expiries_with_too_few_quotes():
 
 
 def test_get_smile_default_range_uses_the_nearest_quoted_expiry():
-    from derivflow.volatility.surface import VolatilitySurface
+    from derivflow_finance.volatility.surface import VolatilitySurface
 
     surface = VolatilitySurface(method="linear")
     for K in (95.0, 100.0, 105.0):

@@ -4,13 +4,13 @@ Market data from Yahoo Finance (optional; install with ``pip install derivflow-f
 This module is never imported by the core package. It wraps ``yfinance`` to
 fetch spot prices, option chains, historical volatility and a short-rate
 proxy, and to turn an option chain into (strike, expiry, implied volatility)
-points for :class:`derivflow.volatility.surface.VolatilitySurface`.
+points for :class:`derivflow_finance.volatility.surface.VolatilitySurface`.
 
 Conventions and limitations:
 
 - Time to expiry is ACT/365 to 16:00 New York time on the expiry date
-  (:func:`derivflow._dates.year_fraction_to_expiry`).
-- Implied volatilities are solved with :func:`derivflow.implied_volatility`
+  (:func:`derivflow_finance._dates.year_fraction_to_expiry`).
+- Implied volatilities are solved with :func:`derivflow_finance.implied_volatility`
   from the bid/ask mid (last trade if there is no two-sided quote), the given
   rate and dividend yield. Quotes with no solution are dropped. Yahoo's own
   implied volatility is kept separately as ``vendor_implied_volatility``.
@@ -257,7 +257,7 @@ class AdvancedMarketData:
 
         For each quote the price is the bid/ask mid (last trade without a
         two-sided quote) and the volatility is solved with
-        :func:`derivflow.implied_volatility` at rate ``r`` (default: the ^IRX
+        :func:`derivflow_finance.implied_volatility` at rate ``r`` (default: the ^IRX
         proxy from :meth:`get_risk_free_rate`) and dividend yield ``q``.
         Quotes without a solution are dropped and counted in ``'dropped'``.
 

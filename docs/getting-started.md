@@ -8,12 +8,18 @@ DerivFlow Finance needs Python 3.10 or later. The core package depends only on N
 pip install derivflow-finance
 ```
 
+The package is imported as `derivflow_finance`:
+
+```python
+from derivflow_finance import price_european_option
+```
+
 Optional extras:
 
 | extra | adds | for |
 |---|---|---|
-| `[data]` | yfinance, pandas, tzdata | `derivflow.utils.market_data` (Yahoo Finance) |
-| `[plot]` | plotly, matplotlib, pandas | `derivflow.visualization` and `VolatilitySurface.plot_surface` |
+| `[data]` | yfinance, pandas, tzdata | `derivflow_finance.utils.market_data` (Yahoo Finance) |
+| `[plot]` | plotly, matplotlib, pandas | `derivflow_finance.visualization` and `VolatilitySurface.plot_surface` |
 | `[validation]` | QuantLib, py_vollib | the cross-check tests and the benchmark baselines |
 | `[docs]`, `[test]`, `[dev]` | Sphinx, pytest, ruff, build | building the docs and developing |
 
@@ -43,7 +49,7 @@ point (vega) and per rate point (rho); see [Greeks](user-guide/greeks.md).
 Hull's worked example: a six-month option with S = 42, K = 40, r = 10% and sigma = 20%.
 
 ```python
-from derivflow import GreeksCalculator, implied_volatility, price_european_option
+from derivflow_finance import GreeksCalculator, implied_volatility, price_european_option
 
 S, K, T, r, sigma = 42.0, 40.0, 0.5, 0.10, 0.20
 call = price_european_option(S, K, T, r, sigma, "call")

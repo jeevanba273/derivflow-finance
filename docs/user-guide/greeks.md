@@ -24,7 +24,7 @@ compare. The test suite checks every analytical Greek against central finite dif
 an independent price function, and the first-order Greeks against QuantLib.
 
 ```python
-from derivflow import GreeksCalculator, format_greeks_report
+from derivflow_finance import GreeksCalculator, format_greeks_report
 
 g = GreeksCalculator().calculate_greeks(100.0, 105.0, 0.5, 0.05, 0.25, "call", q=0.02)
 print(format_greeks_report(g, 100.0, 105.0, "call"))

@@ -2,7 +2,7 @@
 
 import pytest
 
-from derivflow.exotic.barrier_options import BarrierOptions
+from derivflow_finance.exotic.barrier_options import BarrierOptions
 
 barrier = BarrierOptions()
 
@@ -142,7 +142,7 @@ def test_monte_carlo_survival_probability_is_the_same_quantity_for_in_and_out():
 
 
 def test_price_barrier_option_convenience_function():
-    from derivflow.exotic import price_barrier_option
+    from derivflow_finance.exotic import price_barrier_option
 
     assert price_barrier_option(100, 100, 90, 1.0, 0.05, 0.2, "down_and_out") == pytest.approx(
         _price("down_and_out", 90), abs=1e-14

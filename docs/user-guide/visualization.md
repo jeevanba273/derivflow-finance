@@ -1,12 +1,12 @@
 # Plots
 
-`derivflow.visualization.DerivativesDashboard` builds Plotly figures (extra `[plot]`). Each
+`derivflow_finance.visualization.DerivativesDashboard` builds Plotly figures (extra `[plot]`). Each
 `plot_*` method returns a `plotly.graph_objects.Figure`; call `.show()` to display it or
 `.write_html(path)` to save it. Prices and Greeks come from the Black-Scholes-Merton functions
 of this package.
 
 ```python
-from derivflow.visualization import DerivativesDashboard
+from derivflow_finance.visualization import DerivativesDashboard
 
 dash = DerivativesDashboard(theme="plotly_white")
 figures = {

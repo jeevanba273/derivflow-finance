@@ -1,4 +1,4 @@
 Greeks
 ======
 
-.. automodule:: derivflow.greeks.calculator
+.. automodule:: derivflow_finance.greeks.calculator

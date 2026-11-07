@@ -12,7 +12,7 @@ $$C = S e^{-qT} N(d_1) - K e^{-rT} N(d_2), \qquad P = K e^{-rT} N(-d_2) - S e^{-
 $$d_1 = \frac{\ln(S/K) + (r - q + \sigma^2/2) T}{\sigma\sqrt{T}}, \qquad d_2 = d_1 - \sigma\sqrt{T}.$$
 
 ```python
-from derivflow import black_scholes_price, price_european_option
+from derivflow_finance import black_scholes_price, price_european_option
 
 # Haug (2007): S=60, K=65, T=0.25, r=8%, sigma=30% gives a call of 2.1334
 print(round(price_european_option(60, 65, 0.25, 0.08, 0.30, "call"), 4))

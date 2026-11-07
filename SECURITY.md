@@ -12,7 +12,7 @@ running a current version before reporting an issue.
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in derivflow, please report it
+If you discover a security vulnerability in DerivFlow Finance, please report it
 **privately**. Do **not** open a public GitHub issue, pull request, or
 discussion for security vulnerabilities, as that could expose users to risk
 before a fix is available.
@@ -34,7 +34,7 @@ include:
 
 ## Scope and a note on data sources
 
-derivflow can pull **live market data over the network via
+DerivFlow Finance can pull **live market data over the network via
 [`yfinance`](https://pypi.org/project/yfinance/)** (Yahoo Finance). That data is
 provided by a third party and is outside the maintainers' control. Treat any
 externally fetched data as untrusted input, validate it before use in

@@ -2,8 +2,8 @@
 
 import pytest
 
-from derivflow.core.pricing_engine import price_european_option
-from derivflow.models.heston import HestonModel
+from derivflow_finance.core.pricing_engine import price_european_option
+from derivflow_finance.models.heston import HestonModel
 
 
 def test_feller_condition_warns():

@@ -3,7 +3,7 @@
 Run with:  python examples/heston.py
 """
 
-from derivflow import HestonModel, black_scholes_price, implied_volatility
+from derivflow_finance import HestonModel, black_scholes_price, implied_volatility
 
 S, r, q, T = 100.0, 0.03, 0.0, 1.0
 model = HestonModel()

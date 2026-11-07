@@ -5,7 +5,7 @@ Run with:  python examples/volatility_surface.py
 
 import numpy as np
 
-from derivflow import VolatilitySurface
+from derivflow_finance import VolatilitySurface
 
 # Quotes from a skewed smile at three expiries (illustrative numbers).
 surface = VolatilitySurface(method="svi", reference_price=100.0)

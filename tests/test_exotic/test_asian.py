@@ -2,7 +2,7 @@
 
 import pytest
 
-from derivflow.exotic.asian_options import AsianOptions
+from derivflow_finance.exotic.asian_options import AsianOptions
 
 
 def test_geometric_analytical_vs_mc(tol):
@@ -40,7 +40,7 @@ def test_control_variate_reduces_variance():
 def test_arithmetic_asian_cheaper_than_european():
     asian = AsianOptions(num_sims=50000, random_seed=42)
     res = asian.price(100, 100, 1.0, 0.05, 0.2, "call", asian_type="arithmetic", num_steps=50)
-    from derivflow.core.pricing_engine import price_european_option
+    from derivflow_finance.core.pricing_engine import price_european_option
 
     european = price_european_option(100, 100, 1.0, 0.05, 0.2, "call")
     # Averaging reduces effective volatility -> cheaper than the vanilla.

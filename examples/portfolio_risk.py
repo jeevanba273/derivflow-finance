@@ -3,7 +3,7 @@
 Run with:  python examples/portfolio_risk.py
 """
 
-from derivflow import PortfolioRiskAnalyzer
+from derivflow_finance import PortfolioRiskAnalyzer
 
 book = PortfolioRiskAnalyzer(risk_free_rate=0.04)
 book.add_stock_position("INDEX_A", 1_000, 100.0, volatility=0.18)

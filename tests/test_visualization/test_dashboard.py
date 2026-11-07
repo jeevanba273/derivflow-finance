@@ -5,7 +5,7 @@ import pytest
 go = pytest.importorskip("plotly.graph_objects")
 pytest.importorskip("pandas")
 
-from derivflow.visualization.dashboard import (  # noqa: E402
+from derivflow_finance.visualization.dashboard import (  # noqa: E402
     DerivativesDashboard,
     quick_greeks_plot,
     quick_payoff_plot,

@@ -1,14 +1,14 @@
 """
-derivflow: option pricing and risk calculations in Python.
+DerivFlow Finance (``derivflow_finance``): option pricing and risk calculations in Python.
 
 The core package depends only on NumPy and SciPy. Live market data
-(``derivflow.utils.market_data``, extra ``[data]``) and Plotly dashboards
-(``derivflow.visualization``, extra ``[plot]``) are optional and are only
+(``derivflow_finance.utils.market_data``, extra ``[data]``) and Plotly dashboards
+(``derivflow_finance.visualization``, extra ``[plot]``) are optional and are only
 imported when one of their names is first accessed.
 
 Example
 -------
->>> from derivflow import price_european_option
+>>> from derivflow_finance import price_european_option
 >>> round(price_european_option(S=42, K=40, T=0.5, r=0.10, sigma=0.20, option_type="call"), 2)
 4.76
 """
@@ -74,28 +74,28 @@ from .volatility.surface import (
     create_sample_surface,
 )
 
-# Optional names resolved lazily (PEP 562) so that ``import derivflow`` never
+# Optional names resolved lazily (PEP 562) so that ``import derivflow_finance`` never
 # imports yfinance, pandas or plotly.
 _LAZY_EXPORTS = {
-    "AdvancedMarketData": "derivflow.utils.market_data",
-    "OptionData": "derivflow.utils.market_data",
-    "MarketDataResult": "derivflow.utils.market_data",
-    "DerivativesDashboard": "derivflow.visualization.dashboard",
-    "quick_payoff_plot": "derivflow.visualization.dashboard",
-    "quick_greeks_plot": "derivflow.visualization.dashboard",
+    "AdvancedMarketData": "derivflow_finance.utils.market_data",
+    "OptionData": "derivflow_finance.utils.market_data",
+    "MarketDataResult": "derivflow_finance.utils.market_data",
+    "DerivativesDashboard": "derivflow_finance.visualization.dashboard",
+    "quick_payoff_plot": "derivflow_finance.visualization.dashboard",
+    "quick_greeks_plot": "derivflow_finance.visualization.dashboard",
 }
 
 
 def __getattr__(name: str) -> Any:
     module_name = _LAZY_EXPORTS.get(name)
     if module_name is None:
-        raise AttributeError(f"module 'derivflow' has no attribute {name!r}")
+        raise AttributeError(f"module 'derivflow_finance' has no attribute {name!r}")
     extra = "data" if "market_data" in module_name else "plot"
     try:
         module = importlib.import_module(module_name)
     except ImportError as exc:
         raise ImportError(
-            f"derivflow.{name} needs optional dependencies: "
+            f"derivflow_finance.{name} needs optional dependencies: "
             f"pip install derivflow-finance[{extra}] ({exc})"
         ) from exc
     return getattr(module, name)

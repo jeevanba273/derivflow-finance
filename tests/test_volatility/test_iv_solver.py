@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from derivflow.core.pricing_engine import price_european_option
-from derivflow.volatility.implied_vol import (
+from derivflow_finance.core.pricing_engine import price_european_option
+from derivflow_finance.volatility.implied_vol import (
     implied_vol_from_chain,
     implied_volatility,
     implied_volatility_vectorized,

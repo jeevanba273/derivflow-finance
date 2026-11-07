@@ -20,8 +20,8 @@ import warnings
 
 import numpy as np
 
-import derivflow
-from derivflow import (
+import derivflow_finance
+from derivflow_finance import (
     AsianOptions,
     BarrierOptions,
     BinomialTree,
@@ -435,7 +435,8 @@ def main() -> None:
     args = parser.parse_args()
     ql_version = ql.__version__ if ql else "not installed"
     versions = (
-        f"derivflow-finance {derivflow.__version__}, QuantLib {ql_version}, numpy {np.__version__}"
+        f"derivflow-finance {derivflow_finance.__version__}, "
+        f"QuantLib {ql_version}, numpy {np.__version__}"
     )
     report = "\n".join(
         [

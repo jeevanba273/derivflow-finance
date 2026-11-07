@@ -320,7 +320,7 @@ def implied_vol_from_chain(
     """
     Compute implied volatilities for a whole option chain.
 
-    Accepts a :class:`~derivflow.utils.market_data.MarketDataResult`, a pandas
+    Accepts a :class:`~derivflow_finance.utils.market_data.MarketDataResult`, a pandas
     ``DataFrame``, or a list of dicts. Tabular inputs must provide ``strike``,
     ``expiry`` (time to expiry in YEARS), ``option_type`` and a price column
     (``market_price``/``last_price``/``bid``/``ask`` or an explicit
@@ -446,7 +446,7 @@ def _normalize_chain(chain: Any, price_field: str) -> list[dict]:
 
 def _expiry_to_years(expiry: Any) -> float | None:
     """Years to expiry: numeric values are taken as years; 'YYYY-MM-DD' strings
-    and dates use ACT/365 to 16:00 New York time (see derivflow._dates)."""
+    and dates use ACT/365 to 16:00 New York time (see derivflow_finance._dates)."""
     if isinstance(expiry, (int, float)):
         return float(expiry)
     try:

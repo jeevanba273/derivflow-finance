@@ -22,7 +22,7 @@ with warnings.catch_warnings():
             implied_volatility as lbr_iv,
         )
 
-from derivflow import black_scholes_price, implied_volatility
+from derivflow_finance import black_scholes_price, implied_volatility
 
 S, R, Q = 100.0, 0.03, 0.01
 CASES = list(

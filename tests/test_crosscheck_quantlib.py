@@ -14,7 +14,7 @@ import pytest
 
 ql = pytest.importorskip("QuantLib")
 
-from derivflow import (  # noqa: E402
+from derivflow_finance import (  # noqa: E402
     AsianOptions,
     BarrierOptions,
     BinomialTree,

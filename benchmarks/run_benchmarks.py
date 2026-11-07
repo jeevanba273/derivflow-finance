@@ -39,8 +39,8 @@ import numpy as np
 from scipy.special import ndtr
 from scipy.stats import norm
 
-import derivflow
-from derivflow import (
+import derivflow_finance
+from derivflow_finance import (
     BinomialTree,
     BlackScholesAnalytical,
     GreeksCalculator,
@@ -129,7 +129,7 @@ def environment() -> dict[str, Any]:
         "ram_gb": round(ram, 1) if ram else None,
         "os": f"{platform.system()} {platform.release()} ({platform.version()})",
         "python": platform.python_version(),
-        "derivflow-finance": derivflow.__version__,
+        "derivflow-finance": derivflow_finance.__version__,
         "numpy": np.__version__,
         "scipy": _version("scipy"),
         "QuantLib": _version("QuantLib"),
@@ -422,7 +422,7 @@ def bench_pricing(reps: int, quick: bool) -> dict[str, Any]:
 def iv_inputs(n: int, seed: int = 2) -> dict[str, np.ndarray]:
     """Quotes priced from known volatilities, moneyness 0.7-1.3, T 1 week to 2 years.
     Quotes whose time value is below 1e-12 of the price are dropped (no identifiable
-    volatility; see derivflow.volatility.implied_vol)."""
+    volatility; see derivflow_finance.volatility.implied_vol)."""
     rng = np.random.default_rng(seed)
     S = np.full(n, 100.0)
     K = S * rng.uniform(0.7, 1.3, n)

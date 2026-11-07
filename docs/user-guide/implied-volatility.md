@@ -14,7 +14,7 @@ the volatility changes by less than 1e-12.
 ```python
 import numpy as np
 
-from derivflow import black_scholes_price, implied_volatility, implied_volatility_vectorized
+from derivflow_finance import black_scholes_price, implied_volatility, implied_volatility_vectorized
 
 price = black_scholes_price(100.0, 120.0, 0.25, 0.03, 0.35, "call", 0.01)
 print(f"{implied_volatility(price, 100.0, 120.0, 0.25, 0.03, 'call', 0.01):.12f}")
@@ -64,7 +64,7 @@ volatility is within 3e-10 of the true one wherever vega exceeds 1e-6 S; see
 and returns rows ready for `VolatilitySurface.load_market_data`.
 
 ```python
-from derivflow import implied_vol_from_chain
+from derivflow_finance import implied_vol_from_chain
 
 chain = [
     {

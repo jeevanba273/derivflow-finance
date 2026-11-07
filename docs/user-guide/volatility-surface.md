@@ -23,7 +23,7 @@ sets K_ref (otherwise the median strike of the expiry is used).
 ```python
 import numpy as np
 
-from derivflow import VolatilitySurface
+from derivflow_finance import VolatilitySurface
 
 surface = VolatilitySurface(method="svi", reference_price=100.0)
 for T, atm in ((0.25, 0.22), (1.0, 0.20)):
@@ -68,7 +68,7 @@ False True
 ## Interpolating surfaces
 
 ```python
-from derivflow import create_sample_surface
+from derivflow_finance import create_sample_surface
 
 sample = create_sample_surface()  # 36 illustrative quotes with noise, fixed seed
 sample.build_surface(method="rbf")

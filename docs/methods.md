@@ -6,7 +6,7 @@ Haug's cost of carry is b = r - q.
 
 ## Conventions
 
-- Time to expiry T in years; for listed options `derivflow._dates.year_fraction_to_expiry`
+- Time to expiry T in years; for listed options `derivflow_finance._dates.year_fraction_to_expiry`
   uses ACT/365 to 16:00 New York time on the expiry date.
 - Rates r and q are continuously compounded and flat (no term structure).
 - Volatility is annualised; one volatility point is 0.01.

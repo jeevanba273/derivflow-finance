@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from derivflow import (
+from derivflow_finance import (
     AsianOptions,
     BarrierOptions,
     BlackScholesAnalytical,

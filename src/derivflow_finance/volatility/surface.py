@@ -104,7 +104,7 @@ class VolatilitySurface:
         data : pandas.DataFrame or list of dict
             Rows with 'strike', 'expiry' (years) and 'volatility', and
             optionally 'market_price'. Other keys (e.g. 'option_type' from
-            :func:`~derivflow.volatility.implied_vol.implied_vol_from_chain` or
+            :func:`~derivflow_finance.volatility.implied_vol.implied_vol_from_chain` or
             'volume' from the market data client) are ignored. Rows whose
             volatility is missing, NaN or not positive are skipped.
         """

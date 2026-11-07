@@ -15,7 +15,7 @@ characteristic function in the form of Albrecher et al. (2007). It reproduces Al
 reference prices to 1.1e-12 and QuantLib's `AnalyticHestonEngine` to 2.1e-10 on 27 cases.
 
 ```python
-from derivflow import HestonModel, implied_volatility
+from derivflow_finance import HestonModel, implied_volatility
 
 model = HestonModel()
 model.set_parameters(v0=0.04, kappa=2.0, theta=0.04, sigma=0.35, rho=-0.7)

@@ -1,5 +1,5 @@
 include README.md LICENSE CHANGELOG.md CITATION.cff
-include src/derivflow/py.typed
+include src/derivflow_finance/py.typed
 recursive-include tests *.py
 recursive-include examples *.py
 recursive-include benchmarks *.py

@@ -11,9 +11,9 @@ import pytest
 pd = pytest.importorskip("pandas")
 pytest.importorskip("zoneinfo")
 
-from derivflow._dates import new_york, year_fraction_to_expiry  # noqa: E402
-from derivflow.core.pricing_engine import black_scholes_price  # noqa: E402
-from derivflow.utils.market_data import AdvancedMarketData  # noqa: E402
+from derivflow_finance._dates import new_york, year_fraction_to_expiry  # noqa: E402
+from derivflow_finance.core.pricing_engine import black_scholes_price  # noqa: E402
+from derivflow_finance.utils.market_data import AdvancedMarketData  # noqa: E402
 
 try:
     new_york()
@@ -135,7 +135,7 @@ def test_module_imports_and_constructs_without_yfinance():
                     raise ImportError("simulated missing yfinance")
                 return None
         sys.meta_path.insert(0, _Block())
-        from derivflow.utils.market_data import AdvancedMarketData
+        from derivflow_finance.utils.market_data import AdvancedMarketData
         AdvancedMarketData()
         print("IMPORT_OK")
         """

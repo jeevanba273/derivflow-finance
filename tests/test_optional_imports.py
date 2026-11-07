@@ -11,8 +11,8 @@ def test_core_import_does_not_load_optional_dependencies():
     code = textwrap.dedent(
         f"""
         import sys
-        import derivflow
-        from derivflow import (
+        import derivflow_finance
+        from derivflow_finance import (
             price_european_option, GreeksCalculator, BarrierOptions, AsianOptions,
             HestonModel, PortfolioRiskAnalyzer, VolatilitySurface, implied_volatility,
         )
@@ -30,11 +30,11 @@ def test_optional_names_resolve_lazily():
 
     import pytest
 
-    import derivflow
+    import derivflow_finance
 
-    assert "AdvancedMarketData" in dir(derivflow)
+    assert "AdvancedMarketData" in dir(derivflow_finance)
     if importlib.util.find_spec("pandas") is None:
         with pytest.raises(ImportError, match=r"derivflow-finance\[data\]"):
-            derivflow.AdvancedMarketData
+            derivflow_finance.AdvancedMarketData
     else:
-        assert derivflow.AdvancedMarketData.__name__ == "AdvancedMarketData"
+        assert derivflow_finance.AdvancedMarketData.__name__ == "AdvancedMarketData"

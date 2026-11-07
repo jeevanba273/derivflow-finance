@@ -24,8 +24,8 @@
 </div>
 <br>
 
-DerivFlow Finance (`pip install derivflow-finance`, imported as `derivflow`) is a Python library
-for pricing equity-style options and measuring the risk of small option books: the
+DerivFlow Finance (`pip install derivflow-finance`, imported as `derivflow_finance`) is a Python
+library for pricing equity-style options and measuring the risk of small option books: the
 Black-Scholes-Merton closed form and Greeks, implied volatility, binomial trees with early
 exercise, Monte Carlo with variance reduction, barrier and Asian options, the Heston model,
 volatility surfaces and portfolio VaR. It is written for students, researchers and practitioners
@@ -50,7 +50,7 @@ Price, Greeks and implied volatility for Hull's worked example (S=42, K=40, six 
 r=10%, sigma=20%):
 
 ```python
-from derivflow import GreeksCalculator, implied_volatility, price_european_option
+from derivflow_finance import GreeksCalculator, implied_volatility, price_european_option
 
 call = price_european_option(42, 40, 0.5, 0.10, 0.20, "call")
 put = price_european_option(42, 40, 0.5, 0.10, 0.20, "put")
@@ -67,7 +67,7 @@ implied vol from the call price: 0.2000000000
 An American put on a binomial tree, and a Monte Carlo price with its confidence interval:
 
 ```python
-from derivflow import BinomialTree, MonteCarloEngine, black_scholes_price
+from derivflow_finance import BinomialTree, MonteCarloEngine, black_scholes_price
 
 S, K, T, r, sigma = 100.0, 100.0, 1.0, 0.05, 0.20
 american = BinomialTree(2000).price(S, K, T, r, sigma, "put", american=True)
@@ -90,7 +90,7 @@ closed form 10.4506
 A Heston smile, and the VaR of a two-index option book (illustrative positions):
 
 ```python
-from derivflow import HestonModel, PortfolioRiskAnalyzer, implied_volatility
+from derivflow_finance import HestonModel, PortfolioRiskAnalyzer, implied_volatility
 
 heston = HestonModel()
 heston.set_parameters(v0=0.04, kappa=2.0, theta=0.04, sigma=0.35, rho=-0.7)  # v0, theta: variances

@@ -15,7 +15,7 @@ A clear and concise description of what the bug is.
 A minimal, runnable code snippet that reproduces the problem:
 
 ```python
-from derivflow import price_european_option
+from derivflow_finance import price_european_option
 # ...
 ```
 
@@ -29,7 +29,7 @@ What actually happened, including the full traceback if an error was raised.
 
 ## Environment
 
-- derivflow version: (e.g. `0.3.0`, from `python -c "import derivflow; print(derivflow.__version__)"`)
+- derivflow-finance version: (e.g. `0.3.0`, from `python -c "import derivflow_finance; print(derivflow_finance.__version__)"`)
 - Python version: (e.g. `3.11`)
 - Operating system: (e.g. Windows 11, Ubuntu 22.04, macOS 14)
 - Installed via: (PyPI, source, editable)

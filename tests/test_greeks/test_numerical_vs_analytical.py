@@ -7,7 +7,7 @@ compares directly.
 
 import pytest
 
-from derivflow.greeks.calculator import GreeksCalculator
+from derivflow_finance.greeks.calculator import GreeksCalculator
 
 analytical = GreeksCalculator("analytical")
 numerical = GreeksCalculator("numerical")

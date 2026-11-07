@@ -23,7 +23,7 @@ libraries used by the cross-checks (QuantLib and py_vollib).
 pytest                       # full suite; network tests are skipped
 pytest -m "not slow"         # skip the few longer Monte Carlo tests
 pytest --run-network         # also run the tests that call Yahoo Finance
-pytest --cov=derivflow       # with coverage
+pytest --cov=derivflow_finance       # with coverage
 ```
 
 The cross-check tests skip themselves when QuantLib or py_vollib is not installed. Tests must

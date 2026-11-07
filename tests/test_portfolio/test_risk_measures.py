@@ -11,7 +11,7 @@ import pytest
 from scipy import integrate
 from scipy.stats import norm, t
 
-from derivflow.portfolio.risk_measures import (
+from derivflow_finance.portfolio.risk_measures import (
     expected_shortfall,
     normal_es,
     normal_var,

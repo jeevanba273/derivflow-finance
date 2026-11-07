@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from derivflow.core.pricing_engine import MonteCarloEngine
+from derivflow_finance.core.pricing_engine import MonteCarloEngine
 
 CASES = [
     (100.0, 100.0, 1.0, 0.05, 0.2, "call", 0.0),

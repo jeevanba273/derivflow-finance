@@ -9,8 +9,8 @@ import numpy as np
 import pytest
 from scipy.stats import norm
 
-from derivflow.greeks.calculator import GreeksCalculator
-from derivflow.portfolio.portfolio_risk import PortfolioRiskAnalyzer
+from derivflow_finance.greeks.calculator import GreeksCalculator
+from derivflow_finance.portfolio.portfolio_risk import PortfolioRiskAnalyzer
 
 Z99 = norm.ppf(0.99)
 ES99 = norm.pdf(Z99) / 0.01
@@ -101,7 +101,7 @@ def test_monte_carlo_single_stock_matches_lognormal_quantile():
 
 
 def test_monte_carlo_long_call_var_uses_full_revaluation():
-    from derivflow.core.pricing_engine import black_scholes_price
+    from derivflow_finance.core.pricing_engine import black_scholes_price
 
     pa = PortfolioRiskAnalyzer(risk_free_rate=0.03)
     pa.add_option_position("X", 1, 100.0, 100.0, 0.25, "call", 0.30)

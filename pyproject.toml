@@ -72,7 +72,7 @@ Blog = "https://financefluentblog.com/"
 where = ["src"]
 
 [tool.setuptools.package-data]
-derivflow = ["py.typed"]
+derivflow_finance = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -83,7 +83,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["derivflow"]
+source = ["derivflow_finance"]
 branch = true
 omit = ["*/visualization/*", "*/utils/market_data.py"]
 

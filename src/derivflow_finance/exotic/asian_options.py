@@ -414,6 +414,11 @@ class AsianOptions:
                 method = "analytical"
             else:  # arithmetic
                 method = "monte_carlo"
+        if asian_type == "geometric" and average_type == "continuous" and method == "monte_carlo":
+            raise ValueError(
+                "continuous geometric averaging is priced in closed form only; use "
+                "method='analytical', or average_type='discrete' with num_steps fixings"
+            )
 
         # Route to appropriate pricing method
         if asian_type == "geometric" and method == "analytical":

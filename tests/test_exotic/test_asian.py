@@ -119,3 +119,24 @@ def test_continuous_arithmetic_average_is_rejected():
         AsianOptions(num_sims=100).price(
             100, 100, 1.0, 0.05, 0.2, asian_type="arithmetic", average_type="continuous"
         )
+
+
+def test_continuous_geometric_average_by_monte_carlo_is_rejected():
+    """Monte Carlo simulates discrete fixings only; a continuous average must
+    not be silently priced as a discrete one."""
+    with pytest.raises(ValueError, match="continuous geometric"):
+        AsianOptions(num_sims=100).price(
+            100,
+            100,
+            1.0,
+            0.05,
+            0.2,
+            asian_type="geometric",
+            average_type="continuous",
+            method="monte_carlo",
+        )
+    # the closed form still prices the continuous average
+    res = AsianOptions().price(
+        100, 100, 1.0, 0.05, 0.2, asian_type="geometric", average_type="continuous"
+    )
+    assert res.average_type == "continuous" and res.pricing_method == "analytical"

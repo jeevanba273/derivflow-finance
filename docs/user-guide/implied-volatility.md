@@ -9,7 +9,8 @@ The quote is converted to its out-of-the-money equivalent with put-call parity, 
 out-of-the-money price is the option's time value. The solver then runs a safeguarded Newton
 iteration on the logarithm of that price, starting from the Manaster-Koehler point
 sigma0 = sqrt(2 |ln(F/K)| / T) and falling back to bisection inside a bracket. It stops when
-the volatility changes by less than 1e-12.
+the volatility changes by less than 1e-12 x max(1, sigma): 1e-12 absolute up to 100%
+volatility, relative above it.
 
 ```python
 import numpy as np

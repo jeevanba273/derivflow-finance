@@ -13,7 +13,8 @@ the wings: Newton steps start from the Manaster and Koehler (1982) point
 sigma0 = sqrt(2 abs(ln(F/K)) / T), a bracket [lo, hi] is kept from the sign of
 the error, and bisection replaces any Newton step that leaves the bracket or
 fails to halve the previous step. Iteration stops when the change in
-volatility, or the bracket width, is below ``tol`` (absolute, default 1e-12).
+volatility, or the bracket width, is below ``tol * max(1, sigma)`` (default
+tol 1e-12: absolute up to 100% volatility, relative above it).
 
 No solution exists when the price is outside the no-arbitrage bounds
 (intrinsic value of the forward, discounted, and the discounted spot for a
@@ -90,7 +91,8 @@ def implied_volatility(
     option_type : str
         'call' or 'put'.
     tol : float
-        Absolute tolerance on the volatility.
+        Tolerance on the volatility, applied as ``tol * max(1, sigma)``:
+        absolute up to 100% volatility, relative above it.
     max_iter : int
         Maximum number of iterations.
     initial_guess : float, optional

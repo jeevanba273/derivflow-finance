@@ -111,11 +111,6 @@ class BlackScholesAnalytical(PricingMethod):
         """d1 = [ln(S/K) + (r - q + sigma^2/2) T] / (sigma sqrt(T))."""
         return (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
 
-    @staticmethod
-    def _d2(S: float, K: float, T: float, r: float, sigma: float, q: float = 0.0) -> float:
-        """d2 = d1 - sigma sqrt(T)."""
-        return BlackScholesAnalytical._d1(S, K, T, r, sigma, q) - sigma * math.sqrt(T)
-
     def price(
         self,
         S: float,

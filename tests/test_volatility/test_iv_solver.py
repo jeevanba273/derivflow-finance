@@ -86,3 +86,11 @@ def test_from_chain_uses_price_field_for_dict_rows(field):
         assert out["market_price"] == pytest.approx(0.5 * (prices["bid"] + prices["ask"]))
     else:
         assert out["volatility"] == pytest.approx(expected, abs=1e-9)
+
+
+@pytest.mark.parametrize("on_fail", ["ignore", "RAISE", None])
+def test_vectorized_rejects_an_unknown_on_fail(on_fail):
+    """Like the scalar solver, the vectorised one accepts only 'raise' and
+    'nan'; a misspelt 'raise' must not silently return NaN."""
+    with pytest.raises(ValueError, match="on_fail"):
+        implied_volatility_vectorized([5.0, 500.0], 100, 100, 1.0, 0.05, "call", on_fail=on_fail)

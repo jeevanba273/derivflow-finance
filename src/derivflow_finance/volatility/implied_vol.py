@@ -280,6 +280,8 @@ def implied_volatility_vectorized(
     array of 'call'/'put'. Elements without a solution are NaN (or, with
     ``on_fail='raise'``, the first failure raises ``ValueError``).
     """
+    if on_fail not in ("raise", "nan"):
+        raise ValueError("on_fail must be 'raise' or 'nan'")
     p, S_, K_, T_, r_, q_ = np.broadcast_arrays(
         *(np.asarray(x, dtype=float) for x in (prices, S, K, T, r, q))
     )

@@ -48,7 +48,9 @@ Every pricer uses the same units:
 - `sigma` annualised volatility as a decimal (0.20 is 20%).
 
 Greeks are reported per unit of spot (delta, gamma), per calendar day (theta), per volatility
-point (vega) and per rate point (rho); see [Greeks](user-guide/greeks.md).
+point (vega) and per rate point (rho); see [Greeks](user-guide/greeks.md). The one exception is
+`AsianOptions.sensitivity_analysis`, which reports vega and rho per unit and theta per year
+(see [Exotics](user-guide/exotics.md)).
 
 ## A first example
 

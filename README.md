@@ -46,7 +46,8 @@ keeps running in the 0.4 series with a deprecation warning; to update it, replac
 with `derivflow_finance` in import statements. The old name will be removed in 0.5.0.
 
 Units throughout: T in years, r and q continuously compounded, sigma annualised. Theta is per
-calendar day, vega and rho per point (0.01).
+calendar day, vega and rho per point (0.01), except in `AsianOptions.sensitivity_analysis`,
+which reports vega and rho per unit and theta per year.
 
 ## Examples
 

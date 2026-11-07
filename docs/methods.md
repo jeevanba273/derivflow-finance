@@ -12,7 +12,8 @@ Haug's cost of carry is b = r - q.
 - Volatility is annualised; one volatility point is 0.01.
 - VaR horizons are trading days with 252 per year.
 - Greeks: theta and color per calendar day, vega, rho, vanna and zomma per point, volga per
-  point squared ([Greeks](user-guide/greeks.md)).
+  point squared ([Greeks](user-guide/greeks.md)); `AsianOptions.sensitivity_analysis` instead
+  reports vega and rho per unit and theta per year.
 
 ## Black-Scholes-Merton
 

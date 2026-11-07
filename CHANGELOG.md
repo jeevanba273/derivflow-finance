@@ -4,6 +4,68 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-11-08
+
+Fixes found by a wider test suite, bounded memory for path-dependent Monte Carlo, and
+Python 3.14. Prices and Greeks from 0.4.0 are unchanged except where listed under "Fixed".
+
+### Fixed
+
+- `AsianOptions.price` with `asian_type="geometric"`, `average_type="continuous"` and
+  `method="monte_carlo"` simulated 252 discrete fixings and returned that price labelled
+  "discrete" (5.659 against the continuous closed form 5.5468 at S=K=100, T=1, r=5%,
+  sigma=20%). It now raises `ValueError`, as the continuous arithmetic case already did.
+- `AsianOptions.compare_methods` and `BarrierOptions.compare_methods` returned exceptions as
+  strings ("Error: ...") in place of results, and the Asian version returned an empty dict for
+  an unknown `asian_type`. Invalid inputs now raise `ValueError`.
+- `GreeksCalculator("numerical").calculate_greeks(..., pricing_func=f, q=q)` never passed `q`
+  to `f` (delta 0.63674 instead of 0.53767 at S=K=100, T=1, r=5%, sigma=20%, q=4%). A nonzero
+  `q` is now passed; a pricer without a `q` parameter raises `TypeError`.
+- Numerical Greeks at expiry (T = 0) raised `ZeroDivisionError`; they now equal the
+  analytical Greeks of the intrinsic value.
+- `implied_volatility_vectorized` treated any `on_fail` other than "raise" as "nan", so
+  `on_fail="RAISE"` silently returned NaN. Values other than "raise" and "nan" now raise
+  `ValueError`, as in `implied_volatility`.
+- `PricingEngine.validate_put_call_parity` used a fixed 1e-6 tolerance, so with
+  `method="monte_carlo"` it reported `parity_satisfied=False` for a correct engine. For Monte
+  Carlo the tolerance is now four times the sum of the call and put standard errors; the
+  result also reports the `tolerance`.
+- `DerivativesDashboard.plot_pnl_analysis` drew a put's payoff at expiry for
+  `option_type="Call"` (the comparison was case-sensitive) and drew "1 Week Left" and "1 Month
+  Left" lines for options with less time than that to expiry. `plot_price_sensitivity` gave
+  "Call" the put colour.
+- `PortfolioRiskAnalyzer` valuation and scenario analysis now use the analyzer's rate when an
+  option position has none, as `simulate_pnl` already did, and an option position without
+  strike, expiry, volatility or option type raises `ValueError`.
+
+### Changed
+
+- Barrier and Asian Monte Carlo simulate paths in batches of at most 2,000,000 values, with
+  bit-for-bit the same results. The documented barrier example (1,000,000 paths x 252 dates)
+  needed 9,632 MiB of extra memory and now needs 100 MiB; a default Asian price
+  (100,000 x 252) needed 770 MiB and now needs 92 MiB, in about the same time.
+- The implied volatility tolerance is documented as applied: `tol * max(1, sigma)`, absolute
+  up to 100% volatility and relative above it.
+- The README, getting-started and methods pages name the one exception to the units
+  convention: `AsianOptions.sensitivity_analysis` reports vega and rho per unit and theta per
+  year.
+
+### Added
+
+- Python 3.14 in the CI test matrix and the classifiers.
+- Property-based tests with Hypothesis (no-arbitrage bounds, parity, monotonicity, implied
+  volatility round trips, Greek identities, barrier in + out = vanilla, American option
+  bounds, VaR monotonicity); `hypothesis` joins the `test` extra.
+- Reference tests for Asian options (parity, analytic Greeks of the geometric closed form,
+  QuantLib puts), barrier Monte Carlo for all eight types against an independent simulation,
+  Heston Monte Carlo puts and the remaining error paths. Tests: 2,108 -> 2,312 passed on
+  Python 3.13; line and branch coverage 83% -> 98%.
+- mypy type checking in CI.
+
+### Removed
+
+- The unused private helper `BlackScholesAnalytical._d2`.
+
 ## [0.4.0] - 2026-11-08
 
 The import package is renamed from `derivflow` to `derivflow_finance`, so that it matches the

@@ -168,8 +168,10 @@ class AdvancedMarketData:
         except Exception as e:
             raise ValueError(f"Error fetching price for {symbol}: {e}") from e
 
-    def _parse_chain(self, symbol: str, expiry: str, frame: Any, option_type: str) -> list:
-        quotes = []
+    def _parse_chain(
+        self, symbol: str, expiry: str, frame: Any, option_type: str
+    ) -> list[OptionData]:
+        quotes: list[OptionData] = []
         if frame is None or frame.empty:
             return quotes
         for row in frame.to_dict("records"):

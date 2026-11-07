@@ -160,6 +160,16 @@ class PortfolioRiskAnalyzer:
             raise ValueError(f"No positive volatility available for {symbol!r}")
         return float(source.volatility)
 
+    def _option_terms(self, p: Position) -> tuple[float, float, float, float, str, float]:
+        """Strike, expiry, rate, volatility, option type and dividend yield of an
+        option position; the rate defaults to the analyzer's ``risk_free_rate``."""
+        if p.strike is None or p.expiry is None or p.volatility is None or p.option_type is None:
+            raise ValueError(
+                f"option position on {p.symbol!r} needs strike, expiry, volatility and option_type"
+            )
+        r = p.risk_free_rate if p.risk_free_rate is not None else self.risk_free_rate
+        return p.strike, p.expiry, r, p.volatility, p.option_type, p.dividend_yield or 0.0
+
     def dollar_delta_by_underlying(self) -> dict[str, float]:
         """Delta exposure per underlying in currency units: sum of quantity x
         multiplier x delta x spot (stocks have delta 1 and multiplier 1)."""
@@ -321,15 +331,8 @@ class PortfolioRiskAnalyzer:
                 position_value = position.quantity * position.current_price
             elif position.position_type == "option":
                 # Recalculate option price
-                option_price = price_european_option(
-                    position.current_price,
-                    position.strike,
-                    position.expiry,
-                    position.risk_free_rate,
-                    position.volatility,
-                    position.option_type,
-                    q=position.dividend_yield or 0.0,
-                )
+                K, T, r, vol, ot, q = self._option_terms(position)
+                option_price = price_european_option(position.current_price, K, T, r, vol, ot, q=q)
                 position_value = position.quantity * option_price * self.contract_multiplier
             else:
                 position_value = 0.0
@@ -454,14 +457,9 @@ class PortfolioRiskAnalyzer:
             if p.position_type == "stock":
                 pnl += p.quantity * (new_spot - p.current_price)
             elif p.position_type == "option":
-                q = p.dividend_yield or 0.0
-                r = p.risk_free_rate if p.risk_free_rate is not None else self.risk_free_rate
-                v0 = black_scholes_price(
-                    p.current_price, p.strike, p.expiry, r, p.volatility, p.option_type, q
-                )
-                v1 = black_scholes_price(
-                    new_spot, p.strike, max(p.expiry - dt, 0.0), r, p.volatility, p.option_type, q
-                )
+                K, T, r, vol, ot, q = self._option_terms(p)
+                v0 = black_scholes_price(p.current_price, K, T, r, vol, ot, q)
+                v1 = black_scholes_price(new_spot, K, max(T - dt, 0.0), r, vol, ot, q)
                 pnl += p.quantity * self.contract_multiplier * (v1 - v0)
         return pnl
 
@@ -532,26 +530,10 @@ class PortfolioRiskAnalyzer:
                 elif p.position_type == "option":
                     units = p.quantity * self.contract_multiplier
                     if method == "full":
-                        q = p.dividend_yield or 0.0
-                        v0 = black_scholes_price(
-                            p.current_price,
-                            p.strike,
-                            p.expiry,
-                            p.risk_free_rate,
-                            p.volatility,
-                            p.option_type,
-                            q,
-                        )
-                        v1 = black_scholes_price(
-                            p.current_price + dS,
-                            p.strike,
-                            p.expiry,
-                            p.risk_free_rate,
-                            p.volatility,
-                            p.option_type,
-                            q,
-                        )
-                        pnl = units * (v1 - v0)
+                        K, T, r, vol, ot, q = self._option_terms(p)
+                        v0 = black_scholes_price(p.current_price, K, T, r, vol, ot, q)
+                        v1 = black_scholes_price(p.current_price + dS, K, T, r, vol, ot, q)
+                        pnl = float(units * (v1 - v0))
                     else:
                         pnl = units * ((p.delta or 0.0) * dS + 0.5 * (p.gamma or 0.0) * dS**2)
                 else:

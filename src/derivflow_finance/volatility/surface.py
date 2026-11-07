@@ -65,12 +65,12 @@ class VolatilitySurface:
         """
         self.method = method
         self.reference_price = reference_price
-        self.vol_data = []
+        self.vol_data: list[VolatilityPoint] = []
         self.surface_fitted = False
-        self.interpolator = None
-        self._nearest = None
+        self.interpolator: Any = None
+        self._nearest: Any = None
         self._scale = (1.0, 1.0)
-        self.smile_params = {}
+        self.smile_params: dict[float, dict[str, float]] = {}
 
     def add_volatility_point(
         self, strike: float, expiry: float, volatility: float, market_price: float | None = None
@@ -227,8 +227,8 @@ class VolatilitySurface:
         k_min = float(k[np.argmin(w_market)])
         for rho0 in (-0.5, 0.0, 0.5):
             for sigma0 in (0.05, 0.3):
-                x0 = [0.5 * float(np.min(w_market)), 0.1, sigma0, rho0, k_min]
-                x0 = np.clip(x0, lower, upper)
+                start = [0.5 * float(np.min(w_market)), 0.1, sigma0, rho0, k_min]
+                x0 = np.clip(start, lower, upper)
                 fit = least_squares(
                     residuals,
                     x0,
@@ -379,7 +379,7 @@ class VolatilitySurface:
         expiry: float,
         strike_range: tuple[float, float] | None = None,
         num_points: int = 50,
-    ) -> dict[str, np.ndarray]:
+    ) -> dict[str, Any]:
         """
         Extract volatility smile for given expiry
 
@@ -395,8 +395,8 @@ class VolatilitySurface:
 
         Returns:
         --------
-        Dict[str, np.ndarray]
-            Dictionary with 'strikes' and 'volatilities' arrays
+        dict
+            'strikes' and 'volatilities' (arrays) and the 'expiry'
         """
         if not self.surface_fitted:
             self.build_surface()

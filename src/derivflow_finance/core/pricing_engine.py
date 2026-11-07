@@ -540,17 +540,21 @@ class PricingEngine:
             different draws, so there it is four times the sum of their
             standard errors.
         """
-        call_price = self.price_option(
+        call = self.price_option(
             method=method, S=S, K=K, T=T, r=r, sigma=sigma, option_type="call", q=q
         )
-        put_price = self.price_option(
+        put = self.price_option(
             method=method, S=S, K=K, T=T, r=r, sigma=sigma, option_type="put", q=q
         )
 
-        tolerance = 1e-6
-        if isinstance(call_price, dict) and isinstance(put_price, dict):  # Monte Carlo
-            tolerance = 4.0 * (call_price["std_error"] + put_price["std_error"])
-            call_price, put_price = call_price["price"], put_price["price"]
+        if isinstance(call, dict) and isinstance(put, dict):  # Monte Carlo
+            tolerance = 4.0 * (call["std_error"] + put["std_error"])
+            call_price, put_price = float(call["price"]), float(put["price"])
+        elif not isinstance(call, dict) and not isinstance(put, dict):
+            tolerance = 1e-6
+            call_price, put_price = float(call), float(put)
+        else:  # pragma: no cover - one method prices both options
+            raise TypeError("call and put results have different types")
 
         # Calculate put-call parity components
         left_side = call_price - put_price

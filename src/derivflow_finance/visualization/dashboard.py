@@ -582,9 +582,7 @@ class DerivativesDashboard:
         """
         option_type = check_option_type(option_type)
         if premium_paid is None:
-            premium_paid = self.pricing_engine.price_option(
-                "black_scholes", S, K, T, r, sigma, option_type
-            )
+            premium_paid = price_european_option(S, K, T, r, sigma, option_type)
 
         # Spot grid
         spot_range = np.linspace(S * 0.7, S * 1.3, 100)
@@ -617,9 +615,7 @@ class DerivativesDashboard:
                         option_value = max(K - spot, 0)
                 else:
                     # Calculate option value with time left
-                    option_value = self.pricing_engine.price_option(
-                        "black_scholes", spot, K, time_left, r, sigma, option_type
-                    )
+                    option_value = price_european_option(spot, K, time_left, r, sigma, option_type)
 
                 # Calculate P&L
                 pnl = position_size * (option_value - premium_paid)

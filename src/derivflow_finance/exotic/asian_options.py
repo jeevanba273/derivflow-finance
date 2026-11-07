@@ -446,60 +446,32 @@ class AsianOptions:
         asian_type: str = "arithmetic",
     ) -> dict[str, AsianOptionResult]:
         """
-        Geometric: closed form vs Monte Carlo. Arithmetic: Monte Carlo with
-        and without the control variate.
+        Geometric: closed form vs Monte Carlo ('analytical', 'monte_carlo').
+        Arithmetic: Monte Carlo with and without the control variate
+        ('mc_with_cv', 'mc_without_cv'). Both use discrete averaging with 252
+        fixings. Invalid inputs raise ValueError.
         """
-        results = {}
-
+        check_live_inputs(S, K, T, sigma)
+        check_option_type(option_type)
         if asian_type == "geometric":
-            # Compare analytical vs Monte Carlo for geometric
-            try:
-                results["analytical"] = self.price(
+            return {
+                "analytical": self.price(
                     S, K, T, r, sigma, option_type, "geometric", method="analytical"
-                )
-            except Exception as e:
-                results["analytical"] = f"Error: {e!s}"
-
-            try:
-                results["monte_carlo"] = self.price(
+                ),
+                "monte_carlo": self.price(
                     S, K, T, r, sigma, option_type, "geometric", method="monte_carlo"
-                )
-            except Exception as e:
-                results["monte_carlo"] = f"Error: {e!s}"
-
-        elif asian_type == "arithmetic":
-            # Compare with and without control variate
-            try:
-                results["mc_with_cv"] = self.price(
-                    S,
-                    K,
-                    T,
-                    r,
-                    sigma,
-                    option_type,
-                    "arithmetic",
-                    method="monte_carlo",
-                    use_control_variate=True,
-                )
-            except Exception as e:
-                results["mc_with_cv"] = f"Error: {e!s}"
-
-            try:
-                results["mc_without_cv"] = self.price(
-                    S,
-                    K,
-                    T,
-                    r,
-                    sigma,
-                    option_type,
-                    "arithmetic",
-                    method="monte_carlo",
-                    use_control_variate=False,
-                )
-            except Exception as e:
-                results["mc_without_cv"] = f"Error: {e!s}"
-
-        return results
+                ),
+            }
+        if asian_type == "arithmetic":
+            return {
+                "mc_with_cv": self.price(
+                    S, K, T, r, sigma, option_type, "arithmetic", use_control_variate=True
+                ),
+                "mc_without_cv": self.price(
+                    S, K, T, r, sigma, option_type, "arithmetic", use_control_variate=False
+                ),
+            }
+        raise ValueError("asian_type must be 'arithmetic' or 'geometric'")
 
     def sensitivity_analysis(
         self,

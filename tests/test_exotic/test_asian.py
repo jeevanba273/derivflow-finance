@@ -140,3 +140,36 @@ def test_continuous_geometric_average_by_monte_carlo_is_rejected():
         100, 100, 1.0, 0.05, 0.2, asian_type="geometric", average_type="continuous"
     )
     assert res.average_type == "continuous" and res.pricing_method == "analytical"
+
+
+@pytest.mark.parametrize("asian_type", ["geometric", "arithmetic"])
+def test_compare_methods_raises_on_invalid_inputs(asian_type):
+    """Invalid inputs raise ValueError, as everywhere else in the library,
+    instead of being returned as error strings inside the result."""
+    with pytest.raises(ValueError, match="sigma"):
+        AsianOptions(num_sims=100).compare_methods(100, 100, 1.0, 0.05, -0.2, "call", asian_type)
+
+
+def test_compare_methods_rejects_an_unknown_asian_type():
+    with pytest.raises(ValueError, match="asian_type"):
+        AsianOptions(num_sims=100).compare_methods(100, 100, 1.0, 0.05, 0.2, "call", "harmonic")
+
+
+def test_compare_methods_results():
+    from derivflow_finance.exotic.asian_options import AsianOptionResult
+
+    geo = AsianOptions(num_sims=50_000, random_seed=8).compare_methods(
+        100, 105, 1.0, 0.05, 0.2, "put", "geometric"
+    )
+    assert set(geo) == {"analytical", "monte_carlo"}
+    assert all(isinstance(v, AsianOptionResult) for v in geo.values())
+    mc, cf = geo["monte_carlo"], geo["analytical"]
+    assert abs(mc.price - cf.price) < 4 * mc.std_error
+
+    ari = AsianOptions(num_sims=50_000, random_seed=9).compare_methods(
+        100, 105, 1.0, 0.05, 0.2, "put", "arithmetic"
+    )
+    assert set(ari) == {"mc_with_cv", "mc_without_cv"}
+    cv, plain = ari["mc_with_cv"], ari["mc_without_cv"]
+    assert cv.std_error < plain.std_error / 5
+    assert abs(cv.price - plain.price) < 4 * (cv.std_error**2 + plain.std_error**2) ** 0.5

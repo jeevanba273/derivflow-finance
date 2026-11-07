@@ -386,23 +386,13 @@ class BarrierOptions:
         option_type: str = "call",
     ) -> dict[str, BarrierOptionResult]:
         """
-        Closed form and Monte Carlo side by side. The two differ by the
-        discrete-monitoring bias as well as by Monte Carlo error.
+        Closed form and Monte Carlo side by side ('analytical',
+        'monte_carlo'). The two differ by the discrete-monitoring bias as well
+        as by Monte Carlo error. Invalid inputs raise ValueError.
         """
-        results = {}
-
-        try:
-            results["analytical"] = self.analytical_price(
+        return {
+            "analytical": self.analytical_price(S, K, H, T, r, sigma, barrier_type, option_type),
+            "monte_carlo": self.monte_carlo_price(
                 S, K, H, T, r, sigma, barrier_type, option_type
-            )
-        except Exception as e:
-            results["analytical"] = f"Error: {e!s}"
-
-        try:
-            results["monte_carlo"] = self.monte_carlo_price(
-                S, K, H, T, r, sigma, barrier_type, option_type
-            )
-        except Exception as e:
-            results["monte_carlo"] = f"Error: {e!s}"
-
-        return results
+            ),
+        }

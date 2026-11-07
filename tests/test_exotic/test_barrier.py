@@ -160,3 +160,21 @@ def test_at_expiry_a_spot_beyond_the_barrier_counts_as_touched():
     # Spot above the down barrier: knock-out pays, knock-in does not.
     assert barrier.price(105, 100, 90, 0.0, 0.05, 0.2, "down_and_out", "call").price == 5.0
     assert barrier.price(105, 100, 90, 0.0, 0.05, 0.2, "down_and_in", "call").price == 0.0
+
+
+def test_compare_methods_raises_on_invalid_inputs():
+    """Invalid inputs raise ValueError instead of being returned as strings."""
+    with pytest.raises(ValueError, match="sigma"):
+        BarrierOptions().compare_methods(100, 100, 90, 1.0, 0.05, -0.2, "down_and_out")
+    with pytest.raises(ValueError, match="barrier_type"):
+        BarrierOptions().compare_methods(100, 100, 90, 1.0, 0.05, 0.2, "sideways_and_out")
+
+
+def test_compare_methods_results():
+    from derivflow_finance.exotic.barrier_options import BarrierOptionResult
+
+    res = BarrierOptions(random_seed=4).compare_methods(
+        100, 100, 90, 1.0, 0.05, 0.2, "down_and_out", "call"
+    )
+    assert set(res) == {"analytical", "monte_carlo"}
+    assert all(isinstance(v, BarrierOptionResult) for v in res.values())

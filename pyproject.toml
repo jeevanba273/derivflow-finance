@@ -82,6 +82,10 @@ markers = [
     "network: tests that need internet access (skipped unless --run-network is given)",
 ]
 
+[tool.mypy]
+files = ["src/derivflow_finance", "src/derivflow"]
+ignore_missing_imports = true
+
 [tool.coverage.run]
 source = ["derivflow_finance"]
 branch = true

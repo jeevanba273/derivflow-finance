@@ -39,6 +39,7 @@ form.
 ```bash
 ruff check .
 ruff format .
+mypy                         # type check; CI pins mypy 2.4.1 with scipy-stubs and pandas-stubs
 ```
 
 ## Documentation

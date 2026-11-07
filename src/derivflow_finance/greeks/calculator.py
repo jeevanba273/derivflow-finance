@@ -289,8 +289,11 @@ class GreeksCalculator:
         params_theta = base_params.copy()
         params_theta["T"] = max(0.5 * base_params["T"], base_params["T"] - bumps["theta"])
         step = base_params["T"] - params_theta["T"]
-        price_theta = pricing_func(**params_theta)
-        theta = (price_theta - base_price) / step / 365.0
+        if step > 0:
+            price_theta = pricing_func(**params_theta)
+            theta = (price_theta - base_price) / step / 365.0
+        else:  # at expiry (T = 0) no time is left to decay, as in analytical_greeks
+            theta = 0.0
 
         # Vega: dP/dsigma
         params_vega_up = base_params.copy()

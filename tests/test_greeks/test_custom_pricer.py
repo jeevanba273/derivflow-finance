@@ -36,3 +36,15 @@ def test_a_dividend_yield_for_a_pricer_without_q_is_an_error_not_ignored():
     assert res.delta == pytest.approx(
         GreeksCalculator().calculate_greeks(100, 100, 1.0, 0.05, 0.2).delta, abs=1e-4
     )
+
+
+@pytest.mark.parametrize(
+    ("S", "option_type"), [(110, "call"), (90, "call"), (90, "put"), (110, "put")]
+)
+def test_numerical_greeks_at_expiry_match_the_analytical_ones(S, option_type):
+    """At T = 0 the numerical Greeks are those of the intrinsic value, like
+    the analytical ones, instead of dividing by a zero time step."""
+    num = GreeksCalculator("numerical").calculate_greeks(S, 100, 0.0, 0.05, 0.2, option_type)
+    ana = GreeksCalculator().calculate_greeks(S, 100, 0.0, 0.05, 0.2, option_type)
+    for greek in ("delta", "gamma", "theta", "vega", "rho"):
+        assert getattr(num, greek) == pytest.approx(getattr(ana, greek), abs=1e-12), greek

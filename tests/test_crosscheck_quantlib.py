@@ -148,15 +148,17 @@ def test_geometric_asian_closed_forms(K, ot):
     assert ours_disc == pytest.approx(disc.NPV(), abs=1e-10)
 
 
-def test_arithmetic_asian_monte_carlo_against_quantlib_monte_carlo():
-    S, K, r, sigma, days, n = 100.0, 100.0, 0.05, 0.25, 360, 12
+@pytest.mark.parametrize("ot", ["call", "put"])
+@pytest.mark.parametrize("K", [90.0, 100.0, 110.0])
+def test_arithmetic_asian_monte_carlo_against_quantlib_monte_carlo(K, ot):
+    S, r, sigma, days, n = 100.0, 0.05, 0.25, 360, 12
     fixings = [TODAY + 30 * (i + 1) for i in range(n)]
     opt = ql.DiscreteAveragingAsianOption(
         ql.Average.Arithmetic,
         0.0,
         0,
         fixings,
-        _payoff("call", K),
+        _payoff(ot, K),
         ql.EuropeanExercise(TODAY + days),
     )
     engine = ql.MCDiscreteArithmeticAPEngine(
@@ -168,7 +170,7 @@ def test_arithmetic_asian_monte_carlo_against_quantlib_monte_carlo():
     )
     opt.setPricingEngine(engine)
     ours = AsianOptions(num_sims=200_000, random_seed=42).price_arithmetic_asian_mc(
-        S, K, days / 365, r, sigma, "call", num_steps=n
+        S, K, days / 365, r, sigma, ot, num_steps=n
     )
     combined = np.hypot(ours.std_error, opt.errorEstimate())
     assert abs(ours.price - opt.NPV()) < 4 * combined

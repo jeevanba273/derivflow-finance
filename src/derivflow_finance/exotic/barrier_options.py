@@ -392,7 +392,5 @@ class BarrierOptions:
         """
         return {
             "analytical": self.analytical_price(S, K, H, T, r, sigma, barrier_type, option_type),
-            "monte_carlo": self.monte_carlo_price(
-                S, K, H, T, r, sigma, barrier_type, option_type
-            ),
+            "monte_carlo": self.monte_carlo_price(S, K, H, T, r, sigma, barrier_type, option_type),
         }

@@ -539,7 +539,11 @@ class PricingEngine:
         --------
         dict
             call and put prices, both sides of the identity, absolute and
-            relative error, and 'parity_satisfied' (absolute error < 1e-6).
+            relative error, the 'tolerance' and 'parity_satisfied' (absolute
+            error below the tolerance). The tolerance is 1e-6 for the closed
+            form and the tree; Monte Carlo prices the call and the put from
+            different draws, so there it is four times the sum of their
+            standard errors.
         """
         call_price = self.price_option(
             method=method, S=S, K=K, T=T, r=r, sigma=sigma, option_type="call", q=q
@@ -548,11 +552,10 @@ class PricingEngine:
             method=method, S=S, K=K, T=T, r=r, sigma=sigma, option_type="put", q=q
         )
 
-        # Extract prices if Monte Carlo results
-        if isinstance(call_price, dict):
-            call_price = call_price["price"]
-        if isinstance(put_price, dict):
-            put_price = put_price["price"]
+        tolerance = 1e-6
+        if isinstance(call_price, dict) and isinstance(put_price, dict):  # Monte Carlo
+            tolerance = 4.0 * (call_price["std_error"] + put_price["std_error"])
+            call_price, put_price = call_price["price"], put_price["price"]
 
         # Calculate put-call parity components
         left_side = call_price - put_price
@@ -567,7 +570,8 @@ class PricingEngine:
             "right_side": right_side,
             "absolute_error": error,
             "relative_error": relative_error,
-            "parity_satisfied": error < 1e-6,
+            "tolerance": tolerance,
+            "parity_satisfied": bool(error < tolerance),
         }
 
 

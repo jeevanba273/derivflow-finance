@@ -14,6 +14,12 @@ The package is imported as `derivflow_finance`:
 from derivflow_finance import price_european_option
 ```
 
+Up to version 0.3 the import name was `derivflow`. In the 0.4 series `import derivflow` and
+`from derivflow.<module> import <name>` still work and return the same objects, with a
+`FutureWarning`; the old name will be removed in 0.5.0. To update code written for 0.3, replace
+`derivflow` with `derivflow_finance` in its import statements. Anyone who prefers not to change
+yet can pin `derivflow-finance<0.4`.
+
 Optional extras:
 
 | extra | adds | for |

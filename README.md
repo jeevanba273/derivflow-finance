@@ -41,6 +41,10 @@ pip install "derivflow-finance[data]"    # optional: Yahoo Finance market data
 pip install "derivflow-finance[plot]"    # optional: Plotly figures
 ```
 
+Since 0.4.0 the import name is `derivflow_finance` (it was `derivflow`). Code written for 0.3
+keeps running in the 0.4 series with a deprecation warning; to update it, replace `derivflow`
+with `derivflow_finance` in import statements. The old name will be removed in 0.5.0.
+
 Units throughout: T in years, r and q continuously compounded, sigma annualised. Theta is per
 calendar day, vega and rho per point (0.01).
 

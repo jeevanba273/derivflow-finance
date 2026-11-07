@@ -451,7 +451,9 @@ class GreeksCalculator:
         option_type : str
             'call' or 'put'
         pricing_func : callable, optional
-            Custom pricing function for numerical Greeks
+            Custom pricing function for numerical Greeks, called with S, K, T,
+            r, sigma, option_type, q (when q is not zero) and ``kwargs`` as
+            keyword arguments.
         q : float, keyword-only
             Continuous dividend yield (default 0.0 reproduces classic Black-Scholes)
         kwargs
@@ -477,6 +479,10 @@ class GreeksCalculator:
             if pricing_func is None:
                 # Default Black-Scholes pricer supports a dividend yield
                 pricing_func = self._black_scholes_price
+                base_params["q"] = q
+            elif q != 0.0:
+                # A custom pricer gets the dividend yield too; one that does not
+                # accept q raises TypeError rather than silently ignoring it.
                 base_params["q"] = q
             base_params.update(kwargs)
 

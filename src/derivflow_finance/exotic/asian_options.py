@@ -22,6 +22,7 @@ from enum import Enum
 import numpy as np
 import scipy.stats as stats
 
+from .._batching import path_batches
 from .._validation import check_live_inputs, check_option_type
 
 
@@ -164,7 +165,9 @@ class AsianOptions:
 
         The averages are taken over the n fixings only; today's spot S is not
         a fixing. This is the same schedule as the discrete closed form in
-        :meth:`price_geometric_asian_analytical`.
+        :meth:`price_geometric_asian_analytical`. Paths are simulated in
+        batches (see :mod:`derivflow_finance._batching`), so memory does not
+        grow with ``num_sims``.
 
         Returns:
         --------
@@ -172,14 +175,20 @@ class AsianOptions:
             (final_prices, arithmetic_averages, geometric_averages)
         """
         dt = T / num_steps
-        Z = self.rng.standard_normal((self.num_sims, num_steps))
-        increments = (r - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * Z
-        log_paths = np.log(S) + np.cumsum(increments, axis=1)  # columns t_1..t_n
-        paths = np.exp(log_paths)
-
-        arithmetic_avg = paths.mean(axis=1)
-        geometric_avg = np.exp(log_paths.mean(axis=1))
-        final_prices = paths[:, -1]
+        drift = (r - 0.5 * sigma**2) * dt
+        vol_step = sigma * np.sqrt(dt)
+        log_spot = np.log(S)
+        final_prices = np.empty(self.num_sims)
+        arithmetic_avg = np.empty(self.num_sims)
+        geometric_avg = np.empty(self.num_sims)
+        for start, stop in path_batches(self.num_sims, num_steps):
+            Z = self.rng.standard_normal((stop - start, num_steps))
+            increments = drift + vol_step * Z
+            log_paths = log_spot + np.cumsum(increments, axis=1)  # columns t_1..t_n
+            paths = np.exp(log_paths)
+            arithmetic_avg[start:stop] = paths.mean(axis=1)
+            geometric_avg[start:stop] = np.exp(log_paths.mean(axis=1))
+            final_prices[start:stop] = paths[:, -1]
 
         return final_prices, arithmetic_avg, geometric_avg
 

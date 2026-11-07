@@ -26,6 +26,7 @@ from enum import Enum
 import numpy as np
 import scipy.stats as stats
 
+from .._batching import path_batches
 from .._validation import check_market_inputs, check_option_type
 
 
@@ -282,49 +283,41 @@ class BarrierOptions:
         any S(t_i) is on or beyond H. This is a discretely monitored barrier,
         so the price is not the continuous closed form (see the module
         docstring). Returns the price, its standard error (ddof=1) and the
-        simulated no-touch frequency.
+        simulated no-touch frequency. Paths are simulated in batches (see
+        :mod:`derivflow_finance._batching`), so memory does not grow with
+        ``num_sims``.
         """
         self._validate_barrier_parameters(S, K, H, barrier_type, option_type, T, sigma)
         if T <= 0:
             raise ValueError(f"T must be positive (years to expiry), got {T!r}")
         dt = T / num_steps
         discount_factor = np.exp(-r * T)
+        drift = (r - 0.5 * sigma**2) * dt
+        vol_step = sigma * np.sqrt(dt)
+        bt = barrier_type.lower()
+        up_barrier = bt in ("up_and_out", "up_and_in")
+        knock_out = bt in ("up_and_out", "down_and_out")
+        call = option_type.lower() == "call"
 
-        # Simulate exact GBM paths on the monitoring dates
-        Z = self.rng.standard_normal((num_sims, num_steps))
+        discounted_payoffs = np.empty(num_sims)
+        barrier_hit = np.empty(num_sims, dtype=bool)
+        for start, stop in path_batches(num_sims, num_steps):
+            # Exact GBM on the monitoring dates via cumulative log-returns;
+            # column 0 is today's spot.
+            Z = self.rng.standard_normal((stop - start, num_steps))
+            increments = drift + vol_step * Z
+            cum_log_returns = np.zeros((stop - start, num_steps + 1))
+            np.cumsum(increments, axis=1, out=cum_log_returns[:, 1:])
+            paths = S * np.exp(cum_log_returns)
 
-        # Vectorized exact-GBM via cumulative sum of log-returns
-        increments = (r - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * Z
-        cum_log_returns = np.zeros((num_sims, num_steps + 1))
-        np.cumsum(increments, axis=1, out=cum_log_returns[:, 1:])
-        paths = S * np.exp(cum_log_returns)
+            hit = np.any(paths >= H, axis=1) if up_barrier else np.any(paths <= H, axis=1)
+            final_prices = paths[:, -1]
+            intrinsic = np.maximum(final_prices - K, 0) if call else np.maximum(K - final_prices, 0)
+            # Knock-out pays if the barrier was not hit, knock-in only if it was.
+            payoffs = np.where(hit, 0, intrinsic) if knock_out else np.where(hit, intrinsic, 0)
+            discounted_payoffs[start:stop] = payoffs * discount_factor
+            barrier_hit[start:stop] = hit
 
-        # Check barrier conditions
-        barrier_hit = np.zeros(num_sims, dtype=bool)
-
-        if barrier_type.lower() in ["up_and_out", "up_and_in"]:
-            barrier_hit = np.any(paths >= H, axis=1)
-        elif barrier_type.lower() in ["down_and_out", "down_and_in"]:
-            barrier_hit = np.any(paths <= H, axis=1)
-
-        # Calculate payoffs
-        final_prices = paths[:, -1]
-
-        if option_type.lower() == "call":
-            intrinsic_values = np.maximum(final_prices - K, 0)
-        else:
-            intrinsic_values = np.maximum(K - final_prices, 0)
-
-        # Apply barrier conditions
-        if barrier_type.lower() in ["up_and_out", "down_and_out"]:
-            # Knock-out: payoff only if barrier not hit
-            payoffs = np.where(barrier_hit, 0, intrinsic_values)
-        else:  # knock-in
-            # Knock-in: payoff only if barrier was hit
-            payoffs = np.where(barrier_hit, intrinsic_values, 0)
-
-        # Calculate price and statistics
-        discounted_payoffs = payoffs * discount_factor
         price = np.mean(discounted_payoffs)
         std_error = np.std(discounted_payoffs, ddof=1) / np.sqrt(num_sims)
         survival_probability = np.mean(~barrier_hit)

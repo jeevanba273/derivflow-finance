@@ -12,6 +12,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+from .._validation import check_option_type
 from ..core.pricing_engine import PricingEngine, price_european_option
 from ..greeks.calculator import GreeksCalculator
 from ..volatility.surface import create_sample_surface
@@ -204,6 +205,7 @@ class DerivativesDashboard:
         go.Figure
             Price sensitivity chart
         """
+        option_type = check_option_type(option_type)
         # Parameter grid
         if param == "spot":
             param_values = np.linspace(S * (1 - param_range), S * (1 + param_range), 50)
@@ -578,6 +580,7 @@ class DerivativesDashboard:
         go.Figure
             P&L analysis chart
         """
+        option_type = check_option_type(option_type)
         if premium_paid is None:
             premium_paid = self.pricing_engine.price_option(
                 "black_scholes", S, K, T, r, sigma, option_type
@@ -586,13 +589,23 @@ class DerivativesDashboard:
         # Spot grid
         spot_range = np.linspace(S * 0.7, S * 1.3, 100)
 
-        # Calculate P&L for different scenarios
-        scenarios = {"At Expiry": 0, "1 Week Left": 1 / 52, "1 Month Left": 1 / 12, "Current": T}
+        # P&L at expiry, at fixed times before expiry that fall within the
+        # option's remaining life, and now.
+        scenarios = {"At Expiry": 0.0}
+        for name, time_left in (("1 Week Left", 1 / 52), ("1 Month Left", 1 / 12)):
+            if time_left < T:
+                scenarios[name] = time_left
+        scenarios["Current"] = T
 
         fig = go.Figure()
-        colors = ["red", "orange", "yellow", "green"]
+        colors = {
+            "At Expiry": "red",
+            "1 Week Left": "orange",
+            "1 Month Left": "yellow",
+            "Current": "green",
+        }
 
-        for i, (scenario_name, time_left) in enumerate(scenarios.items()):
+        for scenario_name, time_left in scenarios.items():
             pnls = []
 
             for spot in spot_range:
@@ -618,7 +631,7 @@ class DerivativesDashboard:
                     y=pnls,
                     mode="lines",
                     name=scenario_name,
-                    line=dict(color=colors[i], width=2),
+                    line=dict(color=colors[scenario_name], width=2),
                     hovertemplate=(
                         f"{scenario_name}<br>Spot: $%{{x:.2f}}<br>P&L: $%{{y:.2f}}<extra></extra>"
                     ),

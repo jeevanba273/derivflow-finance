@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-08
+
+The import package is renamed from `derivflow` to `derivflow_finance`, so that it matches the
+distribution name `derivflow-finance` and cannot clash with an unrelated package called
+`derivflow`. The pricing and risk code is otherwise unchanged from 0.3.1.
+
+### Changed
+
+- The import name is `derivflow_finance`, for example
+  `from derivflow_finance import price_european_option`; module paths change accordingly
+  (`derivflow_finance.core.pricing_engine` and so on).
+
+### Deprecated
+
+- The `derivflow` import name. In the 0.4 series `import derivflow` and
+  `from derivflow.<module> import <name>` return the same objects as the new name and emit a
+  `FutureWarning` once per process, and pickles that refer to `derivflow` still load. The old
+  name will be removed in 0.5.0. To migrate, replace `derivflow` with `derivflow_finance` in
+  import statements, or pin `derivflow-finance<0.4`.
+
 ## [0.3.1] - 2026-11-04
 
 Documentation-only release. The library code is unchanged from 0.3.0.

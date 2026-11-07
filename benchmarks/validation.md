@@ -1,6 +1,6 @@
 # DerivFlow Finance validation results
 
-Command: `python benchmarks/validation_report.py` (derivflow-finance 0.3.0, QuantLib 1.44, numpy 2.5.4)
+Command: `python benchmarks/validation_report.py` (derivflow-finance 0.4.0, QuantLib 1.44, numpy 2.5.4)
 
 ## Published reference values
 
